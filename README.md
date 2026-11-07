@@ -33,6 +33,8 @@ contF connects those three missing loops. It does **not** promise guaranteed vir
 - [docs/architecture.md](docs/architecture.md) — responsibilities, data flow and interfaces
 - [docs/measurement.md](docs/measurement.md) — metrics, comparison cohorts and decision rules
 - [docs/viral-research-sop.md](docs/viral-research-sop.md) — discovery, reverse engineering, originality checks
+- [docs/reference-to-variant-lab.md](docs/reference-to-variant-lab.md) — HYPIT-class reference-to-original-variant benchmark SOP
+- [research/2026-11-07-reference-recreation-project-landscape.md](research/2026-11-07-reference-recreation-project-landscape.md) — primary-source tool matrix and license caveats
 - [docs/skill-lifecycle.md](docs/skill-lifecycle.md) — E0–E5 evidence and review gates
 - [ROADMAP.md](ROADMAP.md) — day-by-day execution and acceptance criteria
 - [CHANGELOG.md](CHANGELOG.md) — released capabilities and explicit non-goals
@@ -54,6 +56,10 @@ PYTHONPATH=src python3 -m contf.cli review --observations data/examples/observat
 Use Python 3.11+ and set `PYTHONPATH=src` for the second command, or install editable: `python3 -m pip install -e .`.
 
 The included observations are **synthetic test records**, not Maya & Ethan performance data. Real YouTube Analytics ingestion is not enabled yet.
+
+## Reference-to-Variant research track
+
+Issue [#7](https://github.com/Anotonia/contF/issues/7) benchmarks HYPIT, rea-video, edit-recreator, Frameloop, OrkasVideoStudio and HyperFrames as optional components. This is a **research workstream, not an installed integration**. Evaluate authorized source-to-original-story reconstruction, local editability, cost and human supervision; compare YouTube outcomes separately using owned analytics.
 
 ## Operating loop
 
