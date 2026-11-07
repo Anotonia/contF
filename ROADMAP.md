@@ -43,6 +43,14 @@ Dates are relative working days, not a promise that account access or publicatio
 - [ ] Continue / narrow / pivot / pause suggestions
 - [ ] Versioned E0–E5 skill promotion proposals; no autonomous application
 
+### M2b — Reference-to-Variant Lab (research workstream, Issue #7)
+- [x] Research HYPIT-class editing, analysis and rendering projects using primary repository documentation and license statements.
+- [x] Add reference-to-original-variant SOP and a reproducible, no-spend bake-off plan.
+- [ ] Benchmark one **owned or expressly licensed** 12–25s Maya & Ethan video (manual vs two tool pathways), recording cut/beat accuracy, reviewer time and failure types.
+- [ ] Draft 2+ truly original character/situational comedy variants; human approval for scripts and rights.
+- [ ] Decide adopt/narrow/reject; only then design optional FT adapter, model budget and versioned tests.
+- [ ] Measure audience effect separately at matched post ages; do not use public virality counts as evidence of causal uplift.
+
 ## Non-goals for v0.1
 
 A fully automated scraper, proprietary competitor analytics, guaranteed virality, autonomous mass-posting, billing integration, paid model calls and production YouTube OAuth flows.
