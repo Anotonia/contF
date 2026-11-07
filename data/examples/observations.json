@@ -1,0 +1,62 @@
+[
+  {
+    "schema_version": "0.1.0",
+    "experiment_id": "exp-SYNTHETIC-family-hook-001",
+    "variant_id": "A",
+    "video_id": "SYNTHETIC-A",
+    "format": "short",
+    "age_hours": 72,
+    "observed_at": "2026-11-10T00:00:00Z",
+    "source": "synthetic",
+    "traffic_scope": "all",
+    "metrics": {
+      "views": 850,
+      "engaged_views": 410,
+      "shown_in_feed": 990,
+      "stayed_to_watch_pct": 45.1,
+      "avg_view_duration_s": 16.4,
+      "avg_view_percentage": 61,
+      "subscribers_gained": 2
+    }
+  },
+  {
+    "schema_version": "0.1.0",
+    "experiment_id": "exp-SYNTHETIC-family-hook-001",
+    "variant_id": "B",
+    "video_id": "SYNTHETIC-B",
+    "format": "short",
+    "age_hours": 72,
+    "observed_at": "2026-11-10T00:00:00Z",
+    "source": "synthetic",
+    "traffic_scope": "all",
+    "metrics": {
+      "views": 780,
+      "engaged_views": 390,
+      "shown_in_feed": 970,
+      "stayed_to_watch_pct": 43,
+      "avg_view_duration_s": 15.1,
+      "avg_view_percentage": 57,
+      "subscribers_gained": null
+    }
+  },
+  {
+    "schema_version": "0.1.0",
+    "experiment_id": "exp-SYNTHETIC-family-hook-001",
+    "variant_id": "C",
+    "video_id": "SYNTHETIC-C",
+    "format": "short",
+    "age_hours": 72,
+    "observed_at": "2026-11-10T00:00:00Z",
+    "source": "synthetic",
+    "traffic_scope": "all",
+    "metrics": {
+      "views": 1020,
+      "engaged_views": 445,
+      "shown_in_feed": 1150,
+      "stayed_to_watch_pct": 46.7,
+      "avg_view_duration_s": 16.8,
+      "avg_view_percentage": 63,
+      "subscribers_gained": 3
+    }
+  }
+]
