@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "contF public reference",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "reference_id",
+    "platform",
+    "source_url",
+    "captured_at",
+    "provenance",
+    "pattern",
+    "rights_review"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "reference_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "platform": {
+      "enum": [
+        "youtube",
+        "tiktok",
+        "xiaohongshu",
+        "x",
+        "other"
+      ]
+    },
+    "source_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "captured_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "published_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "provenance": {
+      "enum": [
+        "public-observed",
+        "creator-reported",
+        "synthetic"
+      ]
+    },
+    "public_metrics": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "pattern": {
+      "type": "object",
+      "required": [
+        "hook",
+        "conflict",
+        "payoff",
+        "hypothesis"
+      ],
+      "properties": {
+        "hook": {
+          "type": "string"
+        },
+        "conflict": {
+          "type": "string"
+        },
+        "payoff": {
+          "type": "string"
+        },
+        "hypothesis": {
+          "type": "string"
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "rights_review": {
+      "enum": [
+        "not-reviewed",
+        "structure-only",
+        "permission-verified",
+        "blocked"
+      ]
+    }
+  },
+  "additionalProperties": false
+}
