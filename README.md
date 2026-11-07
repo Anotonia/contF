@@ -35,6 +35,8 @@ contF connects those three missing loops. It does **not** promise guaranteed vir
 - [docs/viral-research-sop.md](docs/viral-research-sop.md) — discovery, reverse engineering, originality checks
 - [docs/skill-lifecycle.md](docs/skill-lifecycle.md) — E0–E5 evidence and review gates
 - [ROADMAP.md](ROADMAP.md) — day-by-day execution and acceptance criteria
+- [CHANGELOG.md](CHANGELOG.md) — released capabilities and explicit non-goals
+- [docs/daily-operations.md](docs/daily-operations.md) — repeatable daily research and review
 - [research/](research/) — sourced research notes
 - [templates/](templates/) — reusable study / experiment / review records
 - [data/schemas/](data/schemas/) — machine-readable contracts
@@ -45,8 +47,8 @@ contF connects those three missing loops. It does **not** promise guaranteed vir
 ## Getting started (no account keys needed)
 
 ```bash
-python3 -m unittest discover -s tests -v
-python3 -m contf.cli review --observations data/examples/observations.json --experiments data/examples/experiments.json
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+PYTHONPATH=src python3 -m contf.cli review --observations data/examples/observations.json --experiments data/examples/experiments.json
 ```
 
 Use Python 3.11+ and set `PYTHONPATH=src` for the second command, or install editable: `python3 -m pip install -e .`.
