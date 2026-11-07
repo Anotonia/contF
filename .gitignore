@@ -1,0 +1,29 @@
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+tokens/
+credentials/
+
+# Private raw analytics and generated media
+data/private/
+data/raw/
+media/
+renders/
+outputs/
+*.mp4
+*.mov
+*.wav
+
+# Python / tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+*.egg-info/
+dist/
+build/
+.DS_Store
