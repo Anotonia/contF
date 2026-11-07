@@ -2,6 +2,15 @@
 
 All meaningful changes to data definitions, experiments, research SOPs, adapters and skill-promotion policy are versioned here.
 
+## [Unreleased] — research update 2026-11-07
+
+### Added
+- HYPIT-class reference-to-original-variant project matrix, source/licensing caveats, no-spend evaluation SOP and GitHub Issue #7.
+- Read-only research lane covering shot reconstruction, edit QA, editable runtimes and explicit separation of production reproducibility from viral-performance evidence.
+
+### Still not implemented
+- Installation or execution of external projects, paid rendering, an FT adapter or a verified reduction in human effort.
+
 ## [0.1.0] — 2026-11-07
 
 ### Added
