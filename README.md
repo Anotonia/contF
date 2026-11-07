@@ -33,6 +33,8 @@ contF connects those three missing loops. It does **not** promise guaranteed vir
 - [docs/architecture.md](docs/architecture.md) — responsibilities, data flow and interfaces
 - [docs/measurement.md](docs/measurement.md) — metrics, comparison cohorts and decision rules
 - [docs/viral-research-sop.md](docs/viral-research-sop.md) — discovery, reverse engineering, originality checks
+- [docs/cross-platform-viral-radar.md](docs/cross-platform-viral-radar.md) — **video-first** TikTok / 抖音 / Shorts discovery, source grading and film-level analysis
+- [research/2026-11-07-cross-platform-viral-discovery.md](research/2026-11-07-cross-platform-viral-discovery.md) — dated real-video seed ledger, evidence limits and Maya & Ethan hypotheses
 - [docs/reference-to-variant-lab.md](docs/reference-to-variant-lab.md) — HYPIT-class reference-to-original-variant benchmark SOP
 - [research/2026-11-07-reference-recreation-project-landscape.md](research/2026-11-07-reference-recreation-project-landscape.md) — primary-source tool matrix and license caveats
 - [docs/skill-lifecycle.md](docs/skill-lifecycle.md) — E0–E5 evidence and review gates
@@ -56,6 +58,10 @@ PYTHONPATH=src python3 -m contf.cli review --observations data/examples/observat
 Use Python 3.11+ and set `PYTHONPATH=src` for the second command, or install editable: `python3 -m pip install -e .`.
 
 The included observations are **synthetic test records**, not Maya & Ethan performance data. Real YouTube Analytics ingestion is not enabled yet.
+
+## What comes first: real viral-video evidence
+
+Start with original TikTok / Douyin / YouTube Shorts **video URLs** and inspect the video, source and public figures; assemble hit/contrast pairs with credible same-creator and post-age baselines, then timecode the actual hook, conflict, escalation, shots, expressions and payoff. Only then consider HYPIT-class reconstruction or FT production. Initial 2026-11-07 discovery is **not** a completed verified breakout/control study, and title-only references are not shot analyses.
 
 ## Reference-to-Variant research track
 
