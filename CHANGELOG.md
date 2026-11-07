@@ -5,10 +5,13 @@ All meaningful changes to data definitions, experiments, research SOPs, adapters
 ## [Unreleased] — research update 2026-11-07
 
 ### Added
+- Video-first TikTok / 抖音 / YouTube Shorts Viral Radar SOP v0.2, primary versus secondhand evidence tiers, and 2026-11-07 cross-platform reference seed ledger (not yet a controlled breakout study).
+- Reprioritized actual content mechanism discovery and original Maya & Ethan hypotheses over HYPIT-class tool evaluation; no frame-level claims from title-only references.
 - HYPIT-class reference-to-original-variant project matrix, source/licensing caveats, no-spend evaluation SOP and GitHub Issue #7.
 - Read-only research lane covering shot reconstruction, edit QA, editable runtimes and explicit separation of production reproducibility from viral-performance evidence.
 
 ### Still not implemented
+- Full timecoded visual inspection on the seeded set, authenticated platform-relative breakout/control cohorts, or verified viral transfer to our own channel.
 - Installation or execution of external projects, paid rendering, an FT adapter or a verified reduction in human effort.
 
 ## [0.1.0] — 2026-11-07
