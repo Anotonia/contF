@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "contF creative experiment",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "channel",
+    "format",
+    "created_at",
+    "hypothesis",
+    "primary_variable",
+    "variants",
+    "approval_status"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "channel": {
+      "type": "string"
+    },
+    "format": {
+      "enum": [
+        "short",
+        "long"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "hypothesis": {
+      "type": "string"
+    },
+    "primary_variable": {
+      "type": "string"
+    },
+    "reference_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "variants": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "change"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "change": {
+            "type": "string"
+          },
+          "original_premise": {
+            "type": "string"
+          },
+          "video_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "approval_status": {
+      "enum": [
+        "draft",
+        "human-approved",
+        "published",
+        "closed"
+      ]
+    }
+  },
+  "additionalProperties": false
+}
