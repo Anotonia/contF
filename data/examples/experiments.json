@@ -1,0 +1,33 @@
+[
+  {
+    "schema_version": "0.1.0",
+    "id": "exp-SYNTHETIC-family-hook-001",
+    "channel": "SYNTHETIC-DEMO-NOT-A-REAL-CHANNEL",
+    "format": "short",
+    "created_at": "2026-11-07T00:00:00Z",
+    "hypothesis": "An immediate visual conflict may improve qualifying attention versus a dialogue-led opening.",
+    "primary_variable": "opening-hook-style",
+    "reference_ids": [],
+    "approval_status": "draft",
+    "variants": [
+      {
+        "id": "A",
+        "change": "Visual conflict at 0 seconds",
+        "original_premise": "Parent discovers family snacks hidden behind an ordinary cereal box",
+        "video_id": null
+      },
+      {
+        "id": "B",
+        "change": "Dialogue question at 0 seconds",
+        "original_premise": "Same original family premise and payoff, opened with a question",
+        "video_id": null
+      },
+      {
+        "id": "C",
+        "change": "Show payoff preview at 0 seconds",
+        "original_premise": "Same premise, opened with a surprising consequence",
+        "video_id": null
+      }
+    ]
+  }
+]
