@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "contF owned video observation",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "experiment_id",
+    "variant_id",
+    "video_id",
+    "format",
+    "age_hours",
+    "observed_at",
+    "source",
+    "metrics"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "experiment_id": {
+      "type": "string"
+    },
+    "variant_id": {
+      "type": "string"
+    },
+    "video_id": {
+      "type": "string"
+    },
+    "format": {
+      "enum": [
+        "short",
+        "long"
+      ]
+    },
+    "age_hours": {
+      "type": "number",
+      "minimum": 0
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "enum": [
+        "youtube_analytics_api",
+        "youtube_studio_export",
+        "manual",
+        "synthetic"
+      ]
+    },
+    "traffic_scope": {
+      "enum": [
+        "all",
+        "shorts_feed",
+        "other",
+        "unknown"
+      ]
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "views": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "engaged_views": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "shown_in_feed": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "stayed_to_watch_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "avg_view_duration_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "avg_view_percentage": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "subscribers_gained": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "impressions": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "ctr_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "watch_minutes": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
