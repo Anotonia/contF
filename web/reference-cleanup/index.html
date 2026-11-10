@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>contF · Reference Cleanup Preflight</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0b101a; color: #e8eef8; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; background: radial-gradient(ellipse at 86% 0, #1c2850, transparent 42%), #0b101a; }
+    main { max-width: 1240px; margin: auto; padding: 38px 22px 64px; }
+    header { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; }
+    .eyebrow { letter-spacing: .2em; color: #9daefb; font-size: 11px; font-weight: 750; text-transform: uppercase; }
+    h1 { font-size: clamp(27px, 4vw, 45px); line-height: 1.08; letter-spacing: -.04em; margin: 10px 0; }
+    p { color: #a9b5ce; line-height: 1.6; margin: 0; }
+    .pill { border: 1px solid #5563a5; color: #c5cfff; background: #151e38; border-radius: 100px; padding: 10px 14px; font-size: 12px; white-space: nowrap; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr); gap: 18px; }
+    .panel { border: 1px solid #29344e; border-radius: 20px; background: #121b2a; padding: 20px; box-shadow: 0 12px 34px #0002; }
+    .panel h2 { font-size: 15px; margin: 0 0 16px; color: #e6ecfa; }
+    .stack { display: grid; gap: 14px; }
+    label { display: grid; gap: 6px; color: #b6c4da; font-size: 12px; font-weight: 650; }
+    input, select { width: 100%; min-width: 0; background: #0b1220; color: #f2f5fc; border: 1px solid #3a4760; border-radius: 10px; padding: 11px 12px; font: inherit; }
+    input[type=file] { font-size: 12px; }
+    input[type=checkbox] { width: 16px; accent-color: #8ba4ff; }
+    button { appearance: none; background: #2f427b; color: #fff; border: 1px solid #6279be; border-radius: 10px; padding: 11px 14px; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
+    button:hover { filter: brightness(1.15); }
+    button:disabled { cursor: not-allowed; opacity: .42; }
+    button.primary { background: #b7a3ff; border-color: #d2c3ff; color: #131323; }
+    button.ghost { background: transparent; border-color: #3b4860; color: #bfd0ed; }
+    button.danger { border-color: #7a455b; color: #ffb9c8; background: transparent; padding: 6px 10px; }
+    .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+    .stage { position: relative; display: inline-block; width: 100%; border-radius: 12px; overflow: hidden; background: #03060c; min-height: 220px; text-align: center; }
+    video { width: 100%; display: block; max-height: 60vh; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; }
+    canvas.drawing { pointer-events: auto; cursor: crosshair; }
+    .empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 32px; color: #7c8cae; font-size: 13px; pointer-events: none; }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .tip { font-size: 12px; line-height: 1.55; color: #98a8c6; }
+    .warn { background: #2e2431; border: 1px solid #8f637b; border-radius: 12px; padding: 13px 14px; color: #ffd9e2; font-size: 12px; line-height: 1.55; }
+    .check { display: flex; align-items: flex-start; gap: 8px; line-height: 1.45; }
+    .regions { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+    .regions li { display: flex; gap: 10px; align-items: center; justify-content: space-between; font-size: 12px; padding: 10px 11px; border: 1px solid #34425f; border-radius: 10px; }
+    .muted { color: #899bb6; }
+    #status { margin-top: 12px; min-height: 25px; color: #b8c7ed; font-size: 12px; }
+    footer { color: #647591; font-size: 11px; line-height: 1.7; margin-top: 18px; }
+    a { color: #c2b5ff; }
+    @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .panel { padding: 16px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="eyebrow">contF / Reference-to-Variant Lab / Experimental</div>
+      <h1>视频预处理与复刻交接台</h1>
+      <p>本地预览 · 水印区域与时间码 · 权利检查 · 可审计 JSON · 原创复刻输入</p>
+    </div>
+    <span class="pill">P0 · No upload · No paid API</span>
+  </header>
+  <div class="grid">
+    <section class="panel">
+      <h2>01 / 原始素材与区域标注</h2>
+      <label>选择本地视频（不会上传到 contF）<input id="file" type="file" accept="video/*"></label>
+      <div class="toolbar"><button id="drawBtn" class="ghost" type="button">绘制水印区域</button><span class="tip">播放或暂停后绘制；可分别标注不同时间段</span></div>
+      <div class="stage" id="stage">
+        <video id="preview" controls playsinline preload="metadata"></video>
+        <canvas id="mask" aria-label="Draw watermark regions"></canvas>
+        <div class="empty" id="empty">导入拥有或获准编辑的视频，开始标注</div>
+      </div>
+      <div class="cols" style="margin-top:12px">
+        <label>区域开始时间（秒）<input id="start" type="number" min="0" step="0.1" value="0"></label>
+        <label>区域结束时间（秒）<input id="end" type="number" min="0" step="0.1" value="0"></label>
+      </div>
+      <p class="tip" style="margin-top:10px">矩形使用 0–100% 相对坐标；水印移动时，请分段添加新区域。此页只制作标注清单，不改动视频像素。</p>
+      <ul id="regions" class="regions"><li class="muted">尚未添加区域</li></ul>
+    </section>
+    <aside class="stack">
+      <section class="panel stack">
+        <h2>02 / 来源和授权</h2>
+        <label>Reference ID<input id="refId" placeholder="如 maya-e-001"></label>
+        <label>原始链接（可选，仅记录来源）<input id="sourceUrl" type="url" placeholder="https://..."></label>
+        <label>权利状态<select id="rights"><option value="unknown">不明确 — 仅允许结构分析</option><option value="owned">自有素材</option><option value="licensed">已获得编辑许可</option><option value="public-domain">公有领域且已核实</option></select></label>
+        <label>授权证据 / 备注<input id="evidence" placeholder="许可、来源、授权日期；不要填密钥"></label>
+        <label class="check"><input id="attest" type="checkbox"><span>我确认拥有编辑和输出该素材的必要权利。</span></label>
+        <div class="warn">去除可见水印 ≠ 获得著作权或发布许可。第三方爆款素材默认只保留来源并分析叙事机制；不得直接进入发布资产池。</div>
+      </section>
+      <section class="panel stack">
+        <h2>03 / Web 处理器（人工交接）</h2>
+        <label>处理工具<select id="processor"><option value="watermarkout">WatermarkOut — 浏览器本地 AI</option><option value="vidproc">VidProc — 区域和时段</option><option value="media-io">Media.io — 较长视频 / 云端</option></select></label>
+        <button id="openTool" type="button" disabled>打开工具（需要权利确认）</button>
+        <p class="tip">打开后请自行导入获授权的源文件、按清单选区、导出，并回到 contF 进行人工画质复核。外部工具可能另有上传、定价及隐私条款。</p>
+      </section>
+      <section class="panel stack">
+        <h2>04 / 进入原创复刻</h2>
+        <button id="export" class="primary" type="button">下载预处理 Manifest JSON</button>
+        <p class="tip">记录 reference_id、来源、权利、区域、时间码和未执行状态；后续与镜头 / 节拍拆解及全新 Maya & Ethan 脚本关联。不会假装已完成清理。</p>
+        <div id="status" role="status" aria-live="polite"></div>
+      </section>
+    </aside>
+  </div>
+  <footer>Experimental research interface. No video bytes leave this page. This does not strip hidden provenance such as SynthID, establish permission, or validate output quality. Human confirmation is always required before production.</footer>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const video = $('preview'), canvas = $('mask'), ctx = canvas.getContext('2d');
+  const urls = {
+    watermarkout: 'https://iamramgarhia.github.io/free-ai-watermark-remover/',
+    vidproc: 'https://www.vidproc.com/en',
+    'media-io': 'https://www.media.io/video-watermark-remover.html'
+  };
+  let file = null, objectUrl = null, drawing = false, origin = null, draft = null;
+  const regions = [];
+  const round = n => Number(n.toFixed(3));
+  const authorized = () => $('rights').value !== 'unknown' && $('attest').checked;
+  const tell = value => { $('status').textContent = value; };
+
+  function resize() {
+    const rect = video.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * ratio);
+    canvas.height = Math.round(rect.height * ratio);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    paint();
+  }
+  function paint() {
+    const {width, height} = canvas.getBoundingClientRect();
+    ctx.clearRect(0, 0, width, height);
+    [...regions, ...(draft ? [draft] : [])].forEach((r, i) => {
+      const x = r.x_pct / 100 * width, y = r.y_pct / 100 * height;
+      const w = r.width_pct / 100 * width, h = r.height_pct / 100 * height;
+      ctx.fillStyle = 'rgba(187, 159, 255, .17)';
+      ctx.strokeStyle = '#c6afff'; ctx.lineWidth = 2;
+      ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+      ctx.fillStyle = '#eaddff'; ctx.font = 'bold 12px sans-serif';
+      ctx.fillText(String(i + 1), x + 5, Math.max(12, y - 5));
+    });
+  }
+  function point(e) {
+    const r = canvas.getBoundingClientRect();
+    return {x: Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)), y: Math.max(0, Math.min(100, (e.clientY - r.top) / r.height * 100))};
+  }
+  function box(a, b) {
+    return {x_pct: round(Math.min(a.x, b.x)), y_pct: round(Math.min(a.y, b.y)), width_pct: round(Math.abs(a.x - b.x)), height_pct: round(Math.abs(a.y - b.y))};
+  }
+  function renderRegions() {
+    const list = $('regions'); list.replaceChildren();
+    if (!regions.length) { const li = document.createElement('li'); li.textContent = '尚未添加区域'; li.className = 'muted'; list.append(li); return; }
+    regions.forEach((r, i) => {
+      const li = document.createElement('li'), span = document.createElement('span'), btn = document.createElement('button');
+      span.textContent = `#${i + 1}  ${r.start_s}–${r.end_s}s · (${r.x_pct}, ${r.y_pct}) ${r.width_pct} × ${r.height_pct}%`;
+      btn.type = 'button'; btn.className = 'danger'; btn.textContent = '删除';
+      btn.addEventListener('click', () => { regions.splice(i, 1); renderRegions(); paint(); });
+      li.append(span, btn); list.append(li);
+    });
+  }
+  $('file').addEventListener('change', () => {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    file = $('file').files[0] || null;
+    regions.length = 0; renderRegions();
+    if (!file) { video.removeAttribute('src'); $('empty').hidden = false; return; }
+    objectUrl = URL.createObjectURL(file); video.src = objectUrl;
+    $('empty').hidden = true; tell(`已在本地加载 ${file.name}；等待元数据。`);
+  });
+  video.addEventListener('loadedmetadata', () => {
+    $('start').value = 0; $('end').value = round(video.duration);
+    resize(); tell(`本地载入完成 · ${round(video.duration)} 秒 · 未上传`);
+  });
+  $('drawBtn').addEventListener('click', () => {
+    if (!file || !Number.isFinite(video.duration)) { tell('请先选择并载入视频。'); return; }
+    drawing = !drawing; canvas.classList.toggle('drawing', drawing);
+    $('drawBtn').textContent = drawing ? '退出绘制（可播放视频）' : '绘制水印区域';
+    if (drawing) video.pause();
+  });
+  canvas.addEventListener('pointerdown', e => {
+    if (!drawing) return;
+    origin = point(e); canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', e => { if (origin) { draft = box(origin, point(e)); paint(); } });
+  canvas.addEventListener('pointerup', e => {
+    if (!origin) return;
+    const region = box(origin, point(e)); origin = null; draft = null;
+    const start = Number($('start').value), end = Number($('end').value);
+    if (region.width_pct < .3 || region.height_pct < .3) { tell('区域太小，请拖动绘制矩形。'); paint(); return; }
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start || end > video.duration + .001) { tell('请设置有效的开始 / 结束秒数。'); paint(); return; }
+    regions.push({...region, start_s: round(start), end_s: round(end)});
+    renderRegions(); paint(); tell(`已记录 ${regions.length} 个区域。`);
+  });
+  canvas.addEventListener('pointercancel', () => { origin = null; draft = null; paint(); });
+  for (const id of ['rights', 'attest']) $(id).addEventListener('change', () => { $('openTool').disabled = !authorized(); });
+  $('openTool').addEventListener('click', () => {
+    if (!authorized()) { tell('仅有已授权素材可进入去水印处理。'); return; }
+    window.open(urls[$('processor').value], '_blank', 'noopener,noreferrer');
+    tell('已打开外部 Web 工具。请核对其隐私、费用及许可，并手动导入源文件。');
+  });
+  $('export').addEventListener('click', () => {
+    const referenceId = $('refId').value.trim();
+    if (!file || !Number.isFinite(video.duration) || !referenceId || !regions.length) { tell('请先加载视频、填写 Reference ID 并标注至少一个区域。'); return; }
+    let sourceUrl = $('sourceUrl').value.trim() || null;
+    if (sourceUrl) { try { const url = new URL(sourceUrl); if (!['https:', 'http:'].includes(url.protocol)) throw Error(); } catch { tell('来源链接需要有效的 http(s) URL。'); return; } }
+    const manifest = {
+      schema_version: '0.1.0', reference_id: referenceId, source_url: sourceUrl,
+      captured_at: new Date().toISOString(),
+      source_file: {name: file.name, duration_seconds: round(video.duration)},
+      rights: {status: $('rights').value, attested: authorized(), evidence: $('evidence').value.trim() || null},
+      processor: {tool_id: $('processor').value, execution_status: 'not-run', output_file_name: null},
+      regions, human_review: {status: 'pending', notes: null}
+    };
+    const blob = new Blob([JSON.stringify(manifest, null, 2) + '\n'], {type: 'application/json'});
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = referenceId.replace(/[^a-z0-9_-]/gi, '-') + '-cleanup-manifest.json';
+    document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    tell('Manifest 已导出；仅记录预处理计划，未执行去水印或发布。');
+  });
+  window.addEventListener('resize', resize);
+  renderRegions();
+})();
+</script>
+</body>
+</html>
