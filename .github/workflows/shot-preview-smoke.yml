@@ -54,3 +54,12 @@ jobs:
           assert result['rendered_count'] == 0, result
           print('All 16 shots reused')
           PY
+      - name: Upload synthetic storyboard preview evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: maya-ethan-synthetic-animatic-preview
+          path: |
+            /tmp/contf-preview.mp4
+            /tmp/contf-preview.manifest.json
+          retention-days: 7
+          if-no-files-found: error
