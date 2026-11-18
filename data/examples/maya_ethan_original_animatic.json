@@ -1,0 +1,171 @@
+{
+  "schema_version": "0.2.0",
+  "project_id": "maya-ethan-quiet-kitchen-animatic-001",
+  "format": "long",
+  "rights": "owned-original",
+  "approval_status": "draft",
+  "concept": "The Silent Kitchen: a 3:12 original family-comedy storyboard, NOT a finished motion film",
+  "reference_ids": [],
+  "shots": [
+    {
+      "shot_id": "S01",
+      "duration_s": 12,
+      "beat": "hook",
+      "title": "The quiet challenge",
+      "action": "Maya faces camera with a microphone. Ethan carries breakfast in the back.",
+      "dialogue": "Maya: Just three quiet minutes. I need one clean recording.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S02",
+      "duration_s": 12,
+      "beat": "setup",
+      "title": "Ethan's promise",
+      "action": "Ethan raises two fingers, pledging silence, while the family dog watches.",
+      "dialogue": "Ethan: I can make breakfast without one single sound.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S03",
+      "duration_s": 12,
+      "beat": "conflict",
+      "title": "The first beep",
+      "action": "Ethan taps an unfamiliar silent-mode button on a kitchen tablet.",
+      "dialogue": "Tablet: Silent kitchen mode enabled.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S04",
+      "duration_s": 12,
+      "beat": "reaction",
+      "title": "Suspicious calm",
+      "action": "A toaster door opens without a click. Ethan bows proudly to Maya.",
+      "dialogue": "Maya: Maybe you really did it.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S05",
+      "duration_s": 12,
+      "beat": "escalation",
+      "title": "Unexpected subtitles",
+      "action": "A giant on-screen caption pops up for every kitchen motion: SPOON, BOWL, SPOON.",
+      "dialogue": "Ethan: It muted sounds, not the notifications?",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S06",
+      "duration_s": 12,
+      "beat": "reaction",
+      "title": "Dog notices first",
+      "action": "Dog's ears turn toward the tablet, which keeps displaying captions.",
+      "dialogue": "Maya: Why is it writing down our breakfast?",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S07",
+      "duration_s": 12,
+      "beat": "escalation",
+      "title": "The cereal weather report",
+      "action": "A robot announces it has detected a 'cereal storm'; cereal scatters across the table.",
+      "dialogue": "Device: Severe cereal conditions expected.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S08",
+      "duration_s": 12,
+      "beat": "reversal",
+      "title": "Ethan doubles down",
+      "action": "Ethan waves away the alert and tries to close the smart curtain.",
+      "dialogue": "Ethan: I have total control.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S09",
+      "duration_s": 12,
+      "beat": "conflict",
+      "title": "Curtain rebellion",
+      "action": "The curtain instead opens; sunlight hits a stack of silver pans.",
+      "dialogue": "Maya: That's the opposite of quiet.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S10",
+      "duration_s": 12,
+      "beat": "escalation",
+      "title": "Chain reaction",
+      "action": "A camera tripod bumps a pan; the dog moves it with its nose, setting off more alerts.",
+      "dialogue": "Device: Movement detected in the kitchen.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S11",
+      "duration_s": 12,
+      "beat": "reaction",
+      "title": "Maya's unspoken look",
+      "action": "Maya slowly turns to Ethan. Ethan freezes holding the empty cereal box.",
+      "dialogue": "Ethan: Before you say anything, I have a plan.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S12",
+      "duration_s": 12,
+      "beat": "reversal",
+      "title": "The simple solution",
+      "action": "Dog sits beside the tablet, covering the touch sensor with a paw.",
+      "dialogue": "Maya: Wait. The dog knows how to stop it?",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S13",
+      "duration_s": 12,
+      "beat": "payoff",
+      "title": "Silence at last",
+      "action": "All the smart device alerts disappear. The two exchange a relieved look.",
+      "dialogue": "Maya: That is the smartest one in this house.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S14",
+      "duration_s": 12,
+      "beat": "reaction",
+      "title": "One perfect sentence",
+      "action": "Maya starts recording at last while Ethan holds his breath.",
+      "dialogue": "Maya: Good morning, and welcome to my—",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S15",
+      "duration_s": 12,
+      "beat": "payoff",
+      "title": "The real punchline",
+      "action": "The dog taps an icon labelled APPLAUSE. The screen erupts with giant cheering captions.",
+      "dialogue": "Ethan: We never taught it that.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S16",
+      "duration_s": 12,
+      "beat": "loop",
+      "title": "Next episode hook",
+      "action": "Dog examines the setting 'AUTOMATE BEDTIME'. Maya and Ethan exchange worried looks.",
+      "dialogue": "Maya and Ethan: Don't press that.",
+      "source_media": null,
+      "review_status": "pending"
+    }
+  ]
+}
