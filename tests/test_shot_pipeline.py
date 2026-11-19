@@ -97,7 +97,6 @@ class ShotPipelineTests(unittest.TestCase):
         self.assertEqual(main(["plan", str(project_file), "--root", str(self.root)]), 0)
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg not installed")
-    @unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg not installed")
     def test_single_shot_change_rerenders_only_changed_segment_and_preserves_other_bytes(self):
         """SYNTHETIC: verify actual cached MP4 hashes, not only planned cache keys."""
         import hashlib
@@ -131,6 +130,7 @@ class ShotPipelineTests(unittest.TestCase):
         self.assertFalse(manifest["is_final_video"])
         self.assertEqual(manifest["output_type"], "silent-storyboard-preview")
 
+    @unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg not installed")
     def test_real_render_and_local_cache(self):
         out = self.root / "out.mp4"
         cache = self.root / "cache"
