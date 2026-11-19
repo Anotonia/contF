@@ -97,6 +97,40 @@ class ShotPipelineTests(unittest.TestCase):
         self.assertEqual(main(["plan", str(project_file), "--root", str(self.root)]), 0)
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg not installed")
+    @unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg not installed")
+    def test_single_shot_change_rerenders_only_changed_segment_and_preserves_other_bytes(self):
+        """SYNTHETIC: verify actual cached MP4 hashes, not only planned cache keys."""
+        import hashlib
+        out = self.root / "preview.mp4"
+        cache = self.root / "cache"
+        first = render_preview(self.project, self.root, out, cache,
+                               width=320, height=180, fps=8)
+        self.assertEqual(first["rendered_count"], 2)
+        old_clips = {
+            item["shot_id"]: cache / (item["cache_key"] + ".mp4")
+            for item in first["shots"]
+        }
+        digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+        unchanged_before = digest(old_clips["S01"])
+        revised = copy.deepcopy(self.project)
+        revised["shots"][1]["dialogue"] = "An original revised line"
+        second = render_preview(revised, self.root, out, cache,
+                                width=320, height=180, fps=8)
+        self.assertEqual(second["rendered_count"], 1, second["shot_actions"])
+        self.assertEqual(second["reused_count"], 1, second["shot_actions"])
+        self.assertEqual(
+            {x["shot_id"]: x["action"] for x in second["shot_actions"]},
+            {"S01": "reused", "S02": "rendered"},
+        )
+        self.assertEqual(digest(old_clips["S01"]), unchanged_before)
+        self.assertTrue(old_clips["S02"].exists())
+        self.assertNotEqual(first["shots"][1]["cache_key"],
+                            second["shots"][1]["cache_key"])
+        manifest = json.loads(out.with_suffix(".manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["shot_actions"], second["shot_actions"])
+        self.assertFalse(manifest["is_final_video"])
+        self.assertEqual(manifest["output_type"], "silent-storyboard-preview")
+
     def test_real_render_and_local_cache(self):
         out = self.root / "out.mp4"
         cache = self.root / "cache"
