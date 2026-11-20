@@ -10,7 +10,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from contf.production_adapter import ingest
+from contf.production_adapter import REQUIRED_REVIEW, ingest
 from contf.shot_pipeline import compile_plan
 
 VERSION = "0.1.0"
@@ -41,6 +41,21 @@ def build_jobs(project: dict, root: Path, *, width: int = 640,
             "is_final_video": False}
 
 
+def _verified_receipt(receipt: dict) -> bool:
+    """Only a complete local ingestion report can promote a shot to accepted."""
+    return (receipt.get("accepted") is True
+            and receipt.get("status") == "accepted"
+            and receipt.get("errors") == []
+            and isinstance(receipt.get("media_sha256"), str)
+            and len(receipt["media_sha256"]) == 64
+            and isinstance(receipt.get("reviewer"), str)
+            and bool(receipt["reviewer"].strip())
+            and isinstance(receipt.get("preflight"), dict)
+            and receipt["preflight"].get("passed") is True
+            and isinstance(receipt.get("manual_review"), dict)
+            and all(receipt["manual_review"].get(k) == "pass" for k in REQUIRED_REVIEW))
+
+
 def reconcile(queue: dict, previous: dict | None = None,
               receipts: dict | None = None) -> dict:
     """Retain accepted, fingerprint-matched results only; no stale media reuse."""
@@ -53,6 +68,9 @@ def reconcile(queue: dict, previous: dict | None = None,
         if old and old.get("fingerprint") == job["fingerprint"]:
             for key in ("state", "attempt", "media_receipt"):
                 job[key] = old.get(key, job[key])
+        # Previous acceptance is not authoritative without the linked QA report.
+        if job["state"] == "accepted" and not _verified_receipt(job.get("media_receipt") or {}):
+            job["state"] = "pending-human-review"
         receipt = receipts.get(job["shot_id"])
         if receipt is not None:
             if receipt.get("fingerprint") != job["fingerprint"]:
@@ -60,7 +78,7 @@ def reconcile(queue: dict, previous: dict | None = None,
                 job["media_receipt"] = None
             else:
                 job["media_receipt"] = receipt
-                job["state"] = ("accepted" if receipt.get("accepted") is True
+                job["state"] = ("accepted" if _verified_receipt(receipt)
                                 else "blocked" if receipt.get("errors")
                                 else "pending-human-review")
         jobs.append(job)
