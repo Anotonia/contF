@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from contf.production_jobs import build_jobs, reconcile, prepare_retry
+from contf.production_adapter import REQUIRED_REVIEW
 
 
 def project():
@@ -19,6 +20,13 @@ def project():
                  "title": "End", "action": "Ethan reacts", "dialogue": "Bye",
                  "source_media": None, "review_status": "pending"},
             ]}
+
+
+def verified_receipt(fingerprint):
+    return {"fingerprint": fingerprint, "accepted": True, "status": "accepted",
+            "errors": [], "media_sha256": "a" * 64, "reviewer": "human-reviewer",
+            "preflight": {"passed": True},
+            "manual_review": {key: "pass" for key in REQUIRED_REVIEW}}
 
 
 class ProductionJobTests(unittest.TestCase):
@@ -51,14 +59,33 @@ class ProductionJobTests(unittest.TestCase):
 
     def test_one_shot_change_invalidates_only_that_shot(self):
         queue = build_jobs(self.project, self.root)
-        queue["jobs"][0]["state"] = "accepted"
-        queue["jobs"][1]["state"] = "accepted"
+        for job in queue["jobs"]:
+            job["state"] = "accepted"
+            job["media_receipt"] = verified_receipt(job["fingerprint"])
         modified = copy.deepcopy(self.project)
         modified["shots"][1]["dialogue"] = "Changed!"
         updated = reconcile(build_jobs(modified, self.root), queue)
         self.assertEqual(updated["jobs"][0]["state"], "accepted")
         self.assertEqual(updated["jobs"][1]["state"], "awaiting-human-approval")
         self.assertNotEqual(updated["jobs"][1]["fingerprint"], queue["jobs"][1]["fingerprint"])
+
+    def test_unverified_receipt_cannot_promote_to_accepted(self):
+        queue = build_jobs(self.project, self.root)
+        receipt = {"fingerprint": queue["jobs"][0]["fingerprint"], "accepted": True}
+        updated = reconcile(queue, receipts={"S01": receipt})
+        self.assertEqual(updated["jobs"][0]["state"], "pending-human-review")
+
+    def test_verified_receipt_can_promote_to_accepted(self):
+        queue = build_jobs(self.project, self.root)
+        receipt = verified_receipt(queue["jobs"][0]["fingerprint"])
+        updated = reconcile(queue, receipts={"S01": receipt})
+        self.assertEqual(updated["jobs"][0]["state"], "accepted")
+
+    def test_restored_acceptance_without_qa_is_downgraded(self):
+        queue = build_jobs(self.project, self.root)
+        queue["jobs"][0]["state"] = "accepted"
+        updated = reconcile(build_jobs(self.project, self.root), queue)
+        self.assertEqual(updated["jobs"][0]["state"], "pending-human-review")
 
     def test_stale_receipt_blocks_acceptance(self):
         queue = build_jobs(self.project, self.root)
