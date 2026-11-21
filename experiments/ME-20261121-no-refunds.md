@@ -4,6 +4,7 @@
 - Research lineage: [2026-11-21 radar](../research/2026-11-21-viral-radar-multiplatform-visual.md), H11 [untested]. Structure only; no reference footage, dialogue, props, sound, likeness or framing reused.
 - Status: **script + A/B design approved by owner 2026-11-21** (relayed by the Bot). **Not approved:** spend, paid generation, character designs, publishing. Every shot `review_status: pending`.
 - Google Flow (web) prompt pack for manual rendering: [flow-prompts.md](ME-20261121-no-refunds/flow-prompts.md).
+- Separate long-form adaptation: [The Potluck Clause (36-panel comic script)](ME-20261121-no-refunds/long-form-comic.md). Not part of the Short’s A/B test.
 - Machine-readable ShotSpecs (schema 0.2.0, compatible with the unmerged `contf.shot_pipeline` on PR #9; validated there, 18.0s each): [variant A](ME-20261121-no-refunds/variant-a.shots.json), [variant B](ME-20261121-no-refunds/variant-b.shots.json). Extra fields (`shot_scale`, `camera`, `props`, `onscreen_text_in_post`, `sound_in_post`, `variant_scope`) are informational and ignored by that validator.
 
 ## Hypothesis and single variable
