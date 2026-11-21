@@ -83,6 +83,8 @@ def inspect(path: Path, *, min_seconds: float = 15, max_seconds: float = 25) -> 
         audio = [s for s in streams if s.get("codec_type") == "audio"]
         if not video:
             result["errors"].append("video stream missing")
+        if len(video) > 1:
+            result["errors"].append("multiple video streams are not supported")
         if not audio:
             result["errors"].append("audio stream missing")
         if video and (video[0].get("width", 0) < 640 or video[0].get("height", 0) < 360):

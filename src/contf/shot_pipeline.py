@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "0.2.0"
-RENDER_VERSION = "storyboard-2"
+RENDER_VERSION = "storyboard-3"
 MEDIA_EXTENSIONS = {".mp4", ".mov", ".m4v", ".mkv", ".webm"}
 MEDIA_INPUT_OPTIONS = ["-protocol_whitelist", "file", "-format_whitelist", "mov,matroska,webm"]
 BEATS = {"hook", "setup", "conflict", "escalation", "reaction", "reversal", "payoff", "loop"}
@@ -200,7 +200,7 @@ def _render_shot(shot: dict[str, Any], root: Path, destination: Path,
             ]
         _command([
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
-            *input_args, "-t", duration, "-vf", video_filter,
+            *input_args, "-map", "0:V:0", "-t", duration, "-vf", video_filter,
             "-an", "-c:v", "libx264", "-preset", "ultrafast",
             "-pix_fmt", "yuv420p", "-r", str(fps), str(destination),
         ])

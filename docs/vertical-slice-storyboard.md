@@ -89,14 +89,14 @@ preflight and human review, never a provider's accepted flag. Both `apply` and
 `ingest` require exactly one `--receipt`.
 
 Queues store `plan_settings` (width/height/FPS). The jobs CLI accepts `--width`,
-`--height`, and `--fps`; when `--queue` is supplied, its stored settings are used
-unless explicit matching settings are given. Conflicting settings fail before
+`--height`, and `--fps`; when a same-project `--queue` is supplied, its stored
+settings are used unless explicit matching settings are given. Conflicting settings fail before
 writing output. Legacy queues without settings use the original 640×360/12 defaults.
 Production fingerprints now bind project ID and render cache key (queue contract
 0.2.0); old cache-key-only receipts require re-ingestion against the new job contract.
 Render cache keys remain unchanged. Previous queues from another project are
-ignored. Stale incoming receipts are listed in `rejected_receipts`; they cannot
-erase a verified current accepted receipt. Slice still returns receipt errors
+ignored, including their plan settings. Stale incoming receipts are listed in
+`rejected_receipts`; they cannot erase a verified current accepted receipt. Slice still returns receipt errors
 while retaining that approval in queue.json and audit.json.
 
 Media inputs are restricted to plain `.mp4`, `.mov`, `.m4v`, `.mkv`, or `.webm`
@@ -104,8 +104,9 @@ containers with file-only protocols and restricted demuxers; playlists are not
 accepted, even when renamed to a container extension. Preview and manifest paths
 must not alias source/candidate media (including symlinks or hard links). QA
 measures the first non-attached-picture video stream, not audio/container length;
-unknown video duration fails closed. Renderer `storyboard-2` treats percent signs
-literally in captions and invalidates earlier rendered segments.
+unknown video duration and multiple real video tracks fail closed. Renderer
+`storyboard-3` explicitly maps the first non-attached-picture video stream, treats
+percent signs literally in captions, and invalidates earlier rendered segments.
 
 Receipt `cost` is optional: `{ "amount": 3, "currency": "USD", "source": "billing record reference" }`.
 Omitted cost stays null, including per-shot audit entries. Totals report counts,

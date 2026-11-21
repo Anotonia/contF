@@ -172,6 +172,8 @@ def main() -> int:
     try:
         project = json.loads(args.project.read_text(encoding="utf-8"))
         queue = json.loads(args.queue.read_text(encoding="utf-8")) if args.queue else None
+        if queue is not None and queue.get("project_id") != project["project_id"]:
+            queue = None
         defaults = {"width": 640, "height": 360, "fps": 12}
         stored = queue.get("plan_settings", defaults) if queue is not None else defaults
         settings = {}
@@ -209,6 +211,8 @@ def main() -> int:
                 result = reconcile(build_jobs(project, args.root, **settings), queue,
                                    {r["shot_id"]: r for r in reports})
             else:
+                if queue is None:
+                    raise ValueError("retry requires a queue for the current project")
                 if not args.shot_id:
                     raise ValueError("--shot-id required")
                 result = prepare_retry(queue, args.shot_id,

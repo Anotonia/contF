@@ -10,6 +10,10 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from contf.production_qa import inspect, _video_duration
+from contf.production_adapter import REQUIRED_REVIEW, ingest
+from contf.production_jobs import build_jobs
+from contf.shot_pipeline import render_preview
+from test_production_jobs import project
 
 
 class CandidatePreflightTests(unittest.TestCase):
@@ -80,6 +84,40 @@ class CandidatePreflightTests(unittest.TestCase):
         with patch("contf.production_qa.subprocess.run", return_value=completed):
             with self.assertRaisesRegex(ValueError, "cannot be established"):
                 _video_duration(self.media, {"index": 2})
+
+    @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg not installed")
+    def test_multiple_video_tracks_rejected_and_preview_maps_first_real_video(self):
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                        "color=red:size=640x360:rate=12:duration=12", "-f", "lavfi", "-i",
+                        "color=blue:size=800x450:rate=12:duration=20", "-f", "lavfi", "-i",
+                        "sine=frequency=440:duration=20", "-map", "0:v", "-map", "1:v",
+                        "-map", "2:a", "-c:v", "libx264", "-preset", "ultrafast",
+                        "-pix_fmt", "yuv420p", "-c:a", "aac", "-disposition:v:0", "0",
+                        "-disposition:v:1", "default", str(self.media)], check=True)
+        result = inspect(self.media, min_seconds=11.5, max_seconds=12.5)
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["video_stream_count"], 2)
+        self.assertAlmostEqual(result["duration_s"], 12, delta=0.2)
+        self.assertIn("multiple video streams are not supported", result["errors"])
+        spec = project()
+        spec["shots"][0]["duration_s"] = 12
+        root = self.media.parent
+        receipt = {"receipt_version": "0.1.0", "shot_id": "S01",
+                   "fingerprint": build_jobs(spec, root)["jobs"][0]["fingerprint"],
+                   "producer": "SYNTHETIC", "model_version": "SYNTHETIC-multitrack",
+                   "media_path": self.media.name, "source_rights": "owned",
+                   "reviewer": "SYNTHETIC reviewer",
+                   "manual_review": {gate: "pass" for gate in REQUIRED_REVIEW}}
+        self.assertFalse(ingest(spec, receipt, root)["accepted"])
+        spec["shots"] = spec["shots"][:1]
+        spec["shots"][0].update(source_media=self.media.name, source_rights="owned", duration_s=0.5)
+        output = root / "preview.mp4"
+        render_preview(spec, root, output, root / "cache")
+        pixel = subprocess.check_output(["ffmpeg", "-v", "error", "-i", str(output),
+                                         "-frames:v", "1", "-vf", "crop=2:2:0:0",
+                                         "-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
+        self.assertGreater(pixel[0], 200)
+        self.assertLess(pixel[2], 30)
 
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg not installed")
     def test_short_video_long_audio_rejected(self):
