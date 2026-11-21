@@ -5,6 +5,7 @@ All meaningful changes to data definitions, experiments, research SOPs, adapters
 ## [Unreleased] — research update 2026-11-07
 
 ### Added
+- Offline `contf slice` queue/receipt/preflight/audit/storyboard pipeline with fingerprint-bound receipts, optional actual billing provenance (missing remains null), accepted-shot persistence, and SYNTHETIC FFmpeg integration smoke coverage.
 - Video-first TikTok / 抖音 / YouTube Shorts Viral Radar SOP v0.2, primary versus secondhand evidence tiers, and 2026-11-07 cross-platform reference seed ledger (not yet a controlled breakout study).
 - Reprioritized actual content mechanism discovery and original Maya & Ethan hypotheses over HYPIT-class tool evaluation; no frame-level claims from title-only references.
 - HYPIT-class reference-to-original-variant project matrix, source/licensing caveats, no-spend evaluation SOP and GitHub Issue #7.

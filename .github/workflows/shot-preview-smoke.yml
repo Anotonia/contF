@@ -1,0 +1,81 @@
+name: Shot preview smoke
+
+on:
+  pull_request:
+    paths:
+      - 'src/contf/shot_pipeline.py'
+      - 'tests/test_shot_pipeline.py'
+      - 'src/contf/production_adapter.py'
+      - 'src/contf/production_jobs.py'
+      - 'src/contf/production_qa.py'
+      - 'src/contf/slice.py'
+      - 'src/contf/cli.py'
+      - 'tests/test_production_adapter.py'
+      - 'tests/test_production_jobs.py'
+      - 'tests/test_slice.py'
+      - 'tests/synthetic_slice_smoke.py'
+      - 'docs/vertical-slice-storyboard.md'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'data/examples/maya_ethan_original_animatic.json'
+      - '.github/workflows/shot-preview-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  ffmpeg-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install real FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -hide_banner -version | head -n 1
+      - name: Run full test suite with FFmpeg installed
+        run: python3 -m unittest discover -s tests -v
+      - name: Verify SYNTHETIC receipt to audit and cached preview
+        run: |
+          python3 -m pip install -e .
+          python3 tests/synthetic_slice_smoke.py "$(mktemp -d)/SYNTHETIC-slice"
+      - name: Render 192 second original storyboard
+        run: |
+          PYTHONPATH=src python3 -m contf.shot_pipeline render data/examples/maya_ethan_original_animatic.json --root . --width 320 --height 180 --fps 8 --output /tmp/contf-preview.mp4 --cache /tmp/contf-shot-cache > /tmp/first-render.json
+          test -s /tmp/contf-preview.mp4
+          python3 - <<'PY'
+          import json, subprocess
+          result = json.load(open('/tmp/first-render.json', encoding='utf-8'))
+          assert result['output_type'] == 'silent-storyboard-preview'
+          assert result['is_final_video'] is False
+          assert len(result['shots']) == 16
+          assert result['duration_s'] == 192.0
+          assert result['rendered_count'] == 16, result
+          observed = float(subprocess.check_output([
+              'ffprobe','-v','error','-show_entries','format=duration',
+              '-of','default=noprint_wrappers=1:nokey=1','/tmp/contf-preview.mp4'
+          ], text=True).strip())
+          assert abs(observed-192.0) < 1, observed
+          print('Rendered', observed, 'seconds of clearly labelled storyboard')
+          PY
+      - name: Verify all existing shots are reused
+        run: |
+          PYTHONPATH=src python3 -m contf.shot_pipeline render data/examples/maya_ethan_original_animatic.json --root . --width 320 --height 180 --fps 8 --output /tmp/contf-preview.mp4 --cache /tmp/contf-shot-cache > /tmp/second-render.json
+          python3 - <<'PY'
+          import json
+          result = json.load(open('/tmp/second-render.json', encoding='utf-8'))
+          assert result['reused_count'] == 16, result
+          assert result['rendered_count'] == 0, result
+          print('All 16 shots reused')
+          PY
+      - name: Upload synthetic storyboard preview evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: maya-ethan-synthetic-animatic-preview
+          path: |
+            /tmp/contf-preview.mp4
+            /tmp/contf-preview.manifest.json
+          retention-days: 7
+          if-no-files-found: error
