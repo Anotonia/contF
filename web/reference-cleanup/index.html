@@ -31,7 +31,7 @@
     button.danger { border-color: #7a455b; color: #ffb9c8; background: transparent; padding: 6px 10px; }
     .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
     .stage { position: relative; display: inline-block; width: 100%; border-radius: 12px; overflow: hidden; background: #03060c; min-height: 220px; text-align: center; }
-    video { width: 100%; display: block; max-height: 60vh; }
+    video { width: 100%; display: block; max-height: 60vh; object-fit: contain; }
     canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; }
     canvas.drawing { pointer-events: auto; cursor: crosshair; }
     .empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 32px; color: #7c8cae; font-size: 13px; pointer-events: none; }
@@ -69,8 +69,8 @@
         <div class="empty" id="empty">导入拥有或获准编辑的视频，开始标注</div>
       </div>
       <div class="cols" style="margin-top:12px">
-        <label>区域开始时间（秒）<input id="start" type="number" min="0" step="0.1" value="0"></label>
-        <label>区域结束时间（秒）<input id="end" type="number" min="0" step="0.1" value="0"></label>
+        <label>区域开始时间（秒）<input id="start" type="number" min="0" step="any" value="0"></label>
+        <label>区域结束时间（秒）<input id="end" type="number" min="0" step="any" value="0"></label>
       </div>
       <p class="tip" style="margin-top:10px">矩形使用 0–100% 相对坐标；水印移动时，请分段添加新区域。此页只制作标注清单，不改动视频像素。</p>
       <ul id="regions" class="regions"><li class="muted">尚未添加区域</li></ul>
@@ -104,7 +104,7 @@
 <script>
 (() => {
   const $ = id => document.getElementById(id);
-  const video = $('preview'), canvas = $('mask'), ctx = canvas.getContext('2d');
+  const video = $('preview'), canvas = $('mask'), stage = $('stage'), ctx = canvas.getContext('2d');
   const urls = {
     watermarkout: 'https://iamramgarhia.github.io/free-ai-watermark-remover/',
     vidproc: 'https://www.vidproc.com/en',
@@ -113,16 +113,22 @@
   let file = null, objectUrl = null, drawing = false, origin = null, draft = null;
   const regions = [];
   const round = n => Number(n.toFixed(3));
+  const ready = () => file && !video.error && video.readyState >= video.HAVE_METADATA &&
+    video.videoWidth > 0 && video.videoHeight > 0 && Number.isFinite(video.duration) && video.duration > 0;
   const authorized = () => $('rights').value !== 'unknown' && $('attest').checked;
   const tell = value => { $('status').textContent = value; };
 
   function resize() {
-    const rect = video.getBoundingClientRect();
+    const rect = video.getBoundingClientRect(), parent = stage.getBoundingClientRect();
+    const scale = ready() ? Math.min(rect.width / video.videoWidth, rect.height / video.videoHeight) : 0;
+    const width = scale * video.videoWidth, height = scale * video.videoHeight;
     const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.round(rect.width * ratio);
-    canvas.height = Math.round(rect.height * ratio);
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = rect.height + 'px';
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    canvas.style.left = (rect.left - parent.left + (rect.width - width) / 2) + 'px';
+    canvas.style.top = (rect.top - parent.top + (rect.height - height) / 2) + 'px';
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     paint();
   }
@@ -144,7 +150,15 @@
     return {x: Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)), y: Math.max(0, Math.min(100, (e.clientY - r.top) / r.height * 100))};
   }
   function box(a, b) {
-    return {x_pct: round(Math.min(a.x, b.x)), y_pct: round(Math.min(a.y, b.y)), width_pct: round(Math.abs(a.x - b.x)), height_pct: round(Math.abs(a.y - b.y))};
+    const x = round(Math.min(a.x, b.x)), y = round(Math.min(a.y, b.y));
+    return {x_pct: x, y_pct: y, width_pct: round(round(Math.max(a.x, b.x)) - x), height_pct: round(round(Math.max(a.y, b.y)) - y)};
+  }
+  function setDrawing(value) {
+    drawing = value; origin = null; draft = null;
+    canvas.classList.toggle('drawing', drawing);
+    $('drawBtn').textContent = drawing ? '退出绘制（可播放视频）' : '绘制水印区域';
+    if (drawing) video.pause();
+    paint();
   }
   function renderRegions() {
     const list = $('regions'); list.replaceChildren();
@@ -160,20 +174,22 @@
   $('file').addEventListener('change', () => {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     file = $('file').files[0] || null;
-    regions.length = 0; renderRegions();
-    if (!file) { video.removeAttribute('src'); $('empty').hidden = false; return; }
-    objectUrl = URL.createObjectURL(file); video.src = objectUrl;
-    $('empty').hidden = true; tell(`已在本地加载 ${file.name}；等待元数据。`);
+    regions.length = 0; renderRegions(); setDrawing(false);
+    objectUrl = file ? URL.createObjectURL(file) : null;
+    if (objectUrl) video.src = objectUrl;
+    else { video.removeAttribute('src'); video.load(); }
+    $('empty').hidden = Boolean(file);
+    tell(file ? `已在本地加载 ${file.name}；等待元数据。` : '');
   });
   video.addEventListener('loadedmetadata', () => {
-    $('start').value = 0; $('end').value = round(video.duration);
+    if (!ready()) { tell('无法读取有效的视频时长或画面尺寸。'); return; }
+    $('start').value = 0; $('end').value = video.duration;
     resize(); tell(`本地载入完成 · ${round(video.duration)} 秒 · 未上传`);
   });
+  video.addEventListener('error', () => { setDrawing(false); resize(); tell('无法载入此视频，请尝试其他格式。'); });
   $('drawBtn').addEventListener('click', () => {
-    if (!file || !Number.isFinite(video.duration)) { tell('请先选择并载入视频。'); return; }
-    drawing = !drawing; canvas.classList.toggle('drawing', drawing);
-    $('drawBtn').textContent = drawing ? '退出绘制（可播放视频）' : '绘制水印区域';
-    if (drawing) video.pause();
+    if (!ready()) { tell('请先选择并载入视频。'); return; }
+    setDrawing(!drawing);
   });
   canvas.addEventListener('pointerdown', e => {
     if (!drawing) return;
@@ -183,10 +199,10 @@
   canvas.addEventListener('pointerup', e => {
     if (!origin) return;
     const region = box(origin, point(e)); origin = null; draft = null;
-    const start = Number($('start').value), end = Number($('end').value);
+    const start = $('start').valueAsNumber, end = $('end').valueAsNumber;
     if (region.width_pct < .3 || region.height_pct < .3) { tell('区域太小，请拖动绘制矩形。'); paint(); return; }
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start || end > video.duration + .001) { tell('请设置有效的开始 / 结束秒数。'); paint(); return; }
-    regions.push({...region, start_s: round(start), end_s: round(end)});
+    if (!ready() || !Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start || end > video.duration) { tell('请设置有效的开始 / 结束秒数。'); paint(); return; }
+    regions.push({...region, start_s: start, end_s: end});
     renderRegions(); paint(); tell(`已记录 ${regions.length} 个区域。`);
   });
   canvas.addEventListener('pointercancel', () => { origin = null; draft = null; paint(); });
@@ -198,13 +214,13 @@
   });
   $('export').addEventListener('click', () => {
     const referenceId = $('refId').value.trim();
-    if (!file || !Number.isFinite(video.duration) || !referenceId || !regions.length) { tell('请先加载视频、填写 Reference ID 并标注至少一个区域。'); return; }
+    if (!ready() || !referenceId || !regions.length) { tell('请先加载视频、填写 Reference ID 并标注至少一个区域。'); return; }
     let sourceUrl = $('sourceUrl').value.trim() || null;
     if (sourceUrl) { try { const url = new URL(sourceUrl); if (!['https:', 'http:'].includes(url.protocol)) throw Error(); } catch { tell('来源链接需要有效的 http(s) URL。'); return; } }
     const manifest = {
       schema_version: '0.1.0', reference_id: referenceId, source_url: sourceUrl,
       captured_at: new Date().toISOString(),
-      source_file: {name: file.name, duration_seconds: round(video.duration)},
+      source_file: {name: file.name, duration_seconds: video.duration},
       rights: {status: $('rights').value, attested: authorized(), evidence: $('evidence').value.trim() || null},
       processor: {tool_id: $('processor').value, execution_status: 'not-run', output_file_name: null},
       regions, human_review: {status: 'pending', notes: null}
@@ -215,7 +231,8 @@
     document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     tell('Manifest 已导出；仅记录预处理计划，未执行去水印或发布。');
   });
-  window.addEventListener('resize', resize);
+  new ResizeObserver(resize).observe(video);
+  video.addEventListener('resize', resize);
   renderRegions();
 })();
 </script>

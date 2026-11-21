@@ -41,6 +41,29 @@ class CleanupManifestTests(unittest.TestCase):
         value["processor"]["output_file_name"] = "invented.mp4"
         self.assertIn("not-run cleanup cannot claim an output file", validate_cleanup_manifest(value))
 
+    def test_invalid_enum_types_return_errors(self):
+        for field, key, error in (
+            ("rights", "status", "rights.status is missing or invalid"),
+            ("processor", "tool_id", "processor.tool_id is missing or invalid"),
+            ("processor", "execution_status", "processor.execution_status is invalid"),
+        ):
+            with self.subTest(field=field, key=key):
+                value = copy.deepcopy(BASE)
+                value[field][key] = []
+                self.assertIn(error, validate_cleanup_manifest(value))
+
+    def test_out_of_range_integer_returns_error(self):
+        value = copy.deepcopy(BASE)
+        value["source_file"]["duration_seconds"] = 10 ** 400
+        self.assertIn("source duration must be positive and finite", validate_cleanup_manifest(value))
+
+    def test_completed_cleanup_requires_nonblank_output_name(self):
+        for name in (42, "   "):
+            with self.subTest(name=name):
+                value = copy.deepcopy(BASE)
+                value["processor"].update(execution_status="completed", output_file_name=name)
+                self.assertIn("completed cleanup requires output_file_name", validate_cleanup_manifest(value))
+
 
 if __name__ == "__main__":
     unittest.main()
