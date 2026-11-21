@@ -59,6 +59,11 @@ Use Python 3.11+ and set `PYTHONPATH=src` for the second command, or install edi
 
 The included observations are **synthetic test records**, not Maya & Ethan performance data. Real YouTube Analytics ingestion is not enabled yet.
 
+For the offline shot queue → receipt QA → cost audit → cached storyboard preview,
+see [the vertical slice walkthrough](docs/vertical-slice-storyboard.md#offline-receipt-to-audit-slice).
+After editable install: `contf slice data/examples/maya_ethan_original_animatic.json --root . --out /tmp/contf-slice`.
+This creates a silent storyboard, not a final or published video; no provider or paid generation runs.
+
 ## What comes first: real viral-video evidence
 
 Start with original TikTok / Douyin / YouTube Shorts **video URLs** and inspect the video, source and public figures; assemble hit/contrast pairs with credible same-creator and post-age baselines, then timecode the actual hook, conflict, escalation, shots, expressions and payoff. Only then consider HYPIT-class reconstruction or FT production. Initial 2026-11-07 discovery is **not** a completed verified breakout/control study, and title-only references are not shot analyses.
