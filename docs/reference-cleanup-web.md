@@ -26,7 +26,7 @@ No application account, dependency installation or service API is needed. The se
 
 ## Data contract
 
-`data/schemas/cleanup-manifest.schema.json` is an additive v0.1.0 contract. `src/contf/cleanup.py::validate_cleanup_manifest` checks required structural and rights/time/coordinate invariants. It never accesses media or the network. The manifest is not a license record or a declaration that an external tool succeeded.
+`data/schemas/cleanup-manifest.schema.json` is an additive v0.1.0 contract. `src/contf/cleanup.py::validate_cleanup_manifest` checks preflight invariants (including provenance, review state, rights, timing and coordinates), not full JSON Schema conformance. It never accesses media or the network. The manifest is not a license record or a declaration that an external tool succeeded.
 
 One object records `reference_id`, `source_url`, `captured_at`, `source_file`, `rights`, `processor`, `regions` and `human_review`. A region has `x_pct`, `y_pct`, `width_pct`, `height_pct`, `start_s`, `end_s`. Coordinates are frame-relative (0–100) and **each box must fit inside the frame**. A time range must be within source duration. Avoid persisting raw reference video, transcript copies or third-party cleaned videos to Git.
 

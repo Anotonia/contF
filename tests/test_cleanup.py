@@ -64,6 +64,22 @@ class CleanupManifestTests(unittest.TestCase):
                 value["processor"].update(execution_status="completed", output_file_name=name)
                 self.assertIn("completed cleanup requires output_file_name", validate_cleanup_manifest(value))
 
+    def test_provenance_and_human_review_are_required(self):
+        value = copy.deepcopy(BASE)
+        del value["captured_at"]
+        del value["human_review"]
+        errors = validate_cleanup_manifest(value)
+        self.assertIn("captured_at must be an ISO timestamp with a timezone", errors)
+        self.assertIn("human_review.status is missing or invalid", errors)
+
+    def test_invalid_provenance_and_review_notes(self):
+        value = copy.deepcopy(BASE)
+        value["captured_at"] = "2026-11-10T00:00:00"
+        value["human_review"]["notes"] = 1
+        errors = validate_cleanup_manifest(value)
+        self.assertIn("captured_at must be an ISO timestamp with a timezone", errors)
+        self.assertIn("human_review.notes must be a string or null", errors)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import datetime
 from typing import Any, Mapping
 
 
@@ -17,6 +18,14 @@ def validate_cleanup_manifest(doc: Mapping[str, Any]) -> list[str]:
         errors.append("schema_version must be 0.1.0")
     if not isinstance(doc.get("reference_id"), str) or not doc["reference_id"].strip():
         errors.append("reference_id is required")
+    if not _has_timestamp(doc.get("captured_at")):
+        errors.append("captured_at must be an ISO timestamp with a timezone")
+
+    review = doc.get("human_review")
+    if not isinstance(review, dict) or not _in_enum(review.get("status"), {"pending", "accepted", "rejected"}):
+        errors.append("human_review.status is missing or invalid")
+    elif "notes" not in review or not isinstance(review["notes"], (str, type(None))):
+        errors.append("human_review.notes must be a string or null")
 
     source = doc.get("source_file")
     if not isinstance(source, dict):
@@ -71,6 +80,15 @@ def validate_cleanup_manifest(doc: Mapping[str, Any]) -> list[str]:
 
 def _in_enum(value: Any, options: set[str]) -> bool:
     return isinstance(value, str) and value in options
+
+
+def _has_timestamp(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        return datetime.fromisoformat(value).tzinfo is not None
+    except ValueError:
+        return False
 
 
 def _finite(value: Any) -> bool:
