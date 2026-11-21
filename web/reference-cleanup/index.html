@@ -224,7 +224,13 @@
     const referenceId = $('refId').value.trim();
     if (!ready() || !referenceId || !regions.length) { tell('请先加载视频、填写 Reference ID 并标注至少一个区域。'); return; }
     let sourceUrl = $('sourceUrl').value.trim() || null;
-    if (sourceUrl) { try { const url = new URL(sourceUrl); if (!['https:', 'http:'].includes(url.protocol)) throw Error(); } catch { tell('来源链接需要有效的 http(s) URL。'); return; } }
+    if (sourceUrl) {
+      try {
+        const url = new URL(sourceUrl);
+        if (!['https:', 'http:'].includes(url.protocol)) throw Error();
+        sourceUrl = url.href;
+      } catch { tell('来源链接需要有效的 http(s) URL。'); return; }
+    }
     const manifest = {
       schema_version: '0.1.0', reference_id: referenceId, source_url: sourceUrl,
       captured_at: new Date().toISOString(),
