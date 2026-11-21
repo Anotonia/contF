@@ -1,0 +1,149 @@
+{
+  "schema_version": "0.2.0",
+  "project_id": "me-20261121-no-refunds-b",
+  "format": "short",
+  "rights": "owned-original",
+  "approval_status": "human-approved",
+  "concept": "No Refunds, variant B: 18s silent-readable Maya & Ethan Short; only the final 3s framing differs between A and B",
+  "experiment_id": "ME-20261121-NO-REFUNDS",
+  "variant_id": "B",
+  "reference_ids": [
+    "research/2026-11-21-viral-radar-multiplatform-visual.md#H11"
+  ],
+  "shots": [
+    {
+      "shot_id": "S01",
+      "duration_s": 2,
+      "beat": "hook",
+      "title": "Coupon book slide",
+      "action": "Ethan, beaming, slides a homemade sticky-note chore coupon book across the kitchen counter to Maya. Biscuit sits on the floor, frame right, watching.",
+      "dialogue": "",
+      "shot_scale": "medium-wide two-shot, both humans waist-up, Biscuit visible full-body at floor level",
+      "camera": "static, eye level, locked-off; 9:16",
+      "characters": [
+        "Maya",
+        "Ethan",
+        "Biscuit"
+      ],
+      "props": [
+        "coupon book (blank sticky-note pages, no generated text)"
+      ],
+      "onscreen_text_in_post": "1 FREE DISHWASH (top coupon, added in edit; must be readable muted by 2.0s)",
+      "sound_in_post": "counter slide foley",
+      "variant_scope": "shared",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S02",
+      "duration_s": 3,
+      "beat": "setup",
+      "title": "Maya redeems one",
+      "action": "Maya tears out the top coupon and hands it straight back to Ethan, expectant.",
+      "dialogue": "",
+      "shot_scale": "medium single on Maya, Ethan's hand entering frame",
+      "camera": "static, eye level",
+      "characters": [
+        "Maya",
+        "Ethan"
+      ],
+      "props": [
+        "coupon book",
+        "one torn coupon"
+      ],
+      "onscreen_text_in_post": null,
+      "sound_in_post": "paper tear foley",
+      "variant_scope": "shared",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S03",
+      "duration_s": 3,
+      "beat": "conflict",
+      "title": "The tiny print",
+      "action": "Close insert: Ethan's finger taps the tiny print at the bottom of the coupon.",
+      "dialogue": "",
+      "shot_scale": "insert close-up on coupon and fingertip",
+      "camera": "static, top-down",
+      "characters": [
+        "Ethan (hand only)"
+      ],
+      "props": [
+        "torn coupon"
+      ],
+      "onscreen_text_in_post": "EXPIRED (tiny print on coupon, composited in edit)",
+      "sound_in_post": "single tap foley",
+      "variant_scope": "shared",
+      "production_note": "Candidate for a local owned still or practical photo + composited text: no generation needed.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S04",
+      "duration_s": 5,
+      "beat": "escalation",
+      "title": "Every page expired",
+      "action": "Maya flips through the book: every page is stamped. Ethan crouches and offers the whole book to Biscuit with both hands.",
+      "dialogue": "",
+      "shot_scale": "medium two-shot, then Ethan drops to dog level within the same frame",
+      "camera": "static, eye level; no push-in",
+      "characters": [
+        "Maya",
+        "Ethan",
+        "Biscuit"
+      ],
+      "props": [
+        "coupon book (stamp shapes blank; text added in edit)"
+      ],
+      "onscreen_text_in_post": "EXPIRED stamps on each flipped page",
+      "sound_in_post": "page-flip foley",
+      "variant_scope": "shared",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S05",
+      "duration_s": 2,
+      "beat": "reversal",
+      "title": "Biscuit returns it",
+      "action": "Biscuit takes the book in its mouth, drops it at Ethan's feet and turns away.",
+      "dialogue": "",
+      "shot_scale": "wide shared frame: Maya, crouching Ethan and Biscuit all full-body",
+      "camera": "static, slightly low eye level",
+      "characters": [
+        "Maya",
+        "Ethan",
+        "Biscuit"
+      ],
+      "props": [
+        "coupon book"
+      ],
+      "onscreen_text_in_post": null,
+      "sound_in_post": "soft book drop foley",
+      "variant_scope": "shared",
+      "production_note": "Highest-risk shot (dog mouth/object continuity). Generate first; if it fails QA twice, switch to a practical/composited cue as the research note allows.",
+      "source_media": null,
+      "review_status": "pending"
+    },
+    {
+      "shot_id": "S06B",
+      "duration_s": 3,
+      "beat": "payoff",
+      "title": "Ethan close reaction",
+      "action": "Cut to an isolated close-up of Ethan's face, still crouched, as Biscuit walks off unseen; he holds a deadpan defeated look.",
+      "dialogue": "",
+      "shot_scale": "isolated close-up, Ethan only",
+      "camera": "static, at Ethan's crouched eye line",
+      "characters": [
+        "Ethan"
+      ],
+      "props": [],
+      "onscreen_text_in_post": null,
+      "sound_in_post": "paws walking off (off-screen)",
+      "variant_scope": "B",
+      "source_media": null,
+      "review_status": "pending"
+    }
+  ]
+}
