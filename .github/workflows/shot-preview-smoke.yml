@@ -5,6 +5,18 @@ on:
     paths:
       - 'src/contf/shot_pipeline.py'
       - 'tests/test_shot_pipeline.py'
+      - 'src/contf/production_adapter.py'
+      - 'src/contf/production_jobs.py'
+      - 'src/contf/production_qa.py'
+      - 'src/contf/slice.py'
+      - 'src/contf/cli.py'
+      - 'tests/test_production_adapter.py'
+      - 'tests/test_production_jobs.py'
+      - 'tests/test_slice.py'
+      - 'tests/synthetic_slice_smoke.py'
+      - 'docs/vertical-slice-storyboard.md'
+      - 'README.md'
+      - 'CHANGELOG.md'
       - 'data/examples/maya_ethan_original_animatic.json'
       - '.github/workflows/shot-preview-smoke.yml'
   workflow_dispatch:
@@ -25,6 +37,10 @@ jobs:
           ffmpeg -hide_banner -version | head -n 1
       - name: Run full test suite with FFmpeg installed
         run: python3 -m unittest discover -s tests -v
+      - name: Verify SYNTHETIC receipt to audit and cached preview
+        run: |
+          python3 -m pip install -e .
+          python3 tests/synthetic_slice_smoke.py "$(mktemp -d)/SYNTHETIC-slice"
       - name: Render 192 second original storyboard
         run: |
           PYTHONPATH=src python3 -m contf.shot_pipeline render data/examples/maya_ethan_original_animatic.json --root . --width 320 --height 180 --fps 8 --output /tmp/contf-preview.mp4 --cache /tmp/contf-shot-cache > /tmp/first-render.json

@@ -43,6 +43,57 @@ The renderer writes preview.mp4 and preview.manifest.json, identifying source pr
 - Untrusted cache directories must not be shared across users: cached clips are not independently authenticated.
 - No actual final content is claimed; the storyboard is intentionally silent and must undergo creative and audio QA.
 
+## Offline receipt-to-audit slice
+
+Hypothesis: fingerprint-bound receipt QA and explicit billing missingness let a
+reviewer distinguish accepted shots from missing evidence before final production.
+Decision changed: which shots need a new producer attempt or billing follow-up.
+
+Use Python 3.11+ and FFmpeg/FFprobe. All generated media stays outside Git:
+
+```bash
+python3.11 -m venv ~/contf-venv
+source ~/contf-venv/bin/activate
+pip install -e .
+SAMPLE_ROOT="$(mktemp -d)/SYNTHETIC-slice"
+python tests/synthetic_slice_smoke.py "$SAMPLE_ROOT"
+cat "$SAMPLE_ROOT/out/audit.json"
+```
+
+The script copies the 16-shot sample into the temporary root, generates an owned
+SYNTHETIC 12-second 640×360 testsrc+sine clip, and writes a receipt for S01 with
+the job fingerprint, named SYNTHETIC reviewer, all manual gates passing and a
+fictional billing fixture (not real model pricing or actual spending). It runs:
+
+```bash
+contf slice "$SAMPLE_ROOT/project.json" --root "$SAMPLE_ROOT" --out "$SAMPLE_ROOT/out" \
+  --receipt "$SAMPLE_ROOT/receipt.json" --width 320 --height 180 --fps 8
+contf slice "$SAMPLE_ROOT/project.json" --root "$SAMPLE_ROOT" --out "$SAMPLE_ROOT/out" \
+  --width 320 --height 180 --fps 8
+```
+
+The first run accepts S01, leaves 15 awaiting approval, and renders 16 segments;
+the second retains acceptance and reuses all 16. Output includes queue.json,
+audit.json, preview.mp4 and preview.manifest.json. `--no-render` omits rendering.
+Repeat `--receipt` for multiple raw producer receipts. Validation/receipt errors
+exit nonzero. Receipts must include the exact current `build_jobs` fingerprint;
+dimensions/FPS are part of that contract. The standalone
+`python -m contf.production_jobs reconcile --project ... --root ... --queue ...
+--receipt ingest-report.json` accepts repeatable **ingest reports**, not raw receipts.
+
+Receipt `cost` is optional: `{ "amount": 3, "currency": "USD", "source": "billing record reference" }`.
+Omitted cost stays null, including per-shot audit entries. Totals report counts,
+known costs by currency, a single-currency sum (null for none/mixed currencies),
+unknown-cost count, and cost per accepted minute only when every shot has known
+cost, one currency and positive accepted duration. It includes rejected/pending
+costs in the numerator; it is a current-queue snapshot, not a historical invoice
+ledger across superseded attempts. No exchange rates or costs are inferred.
+Every output is explicitly non-final and unpublished. Synthetic gate passes
+exercise plumbing only, not character/motion/lip-sync quality evidence.
+
+Next test: replace S01 with an authorized, human-reviewed original clip and its
+actual billing source; leave other costs unknown until evidence arrives.
+
 ## Next acceptance work
 
 1. Complete the browser smoke check and rights-cleared clip comparison from PR #8.
