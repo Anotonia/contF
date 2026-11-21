@@ -17,6 +17,8 @@ def run_slice(project: dict, root: Path, out: Path, *, receipts: list[Path] = ()
     planned = build_jobs(project, root, **settings)
     previous_path = out / "queue.json"
     previous = json.loads(previous_path.read_text(encoding="utf-8")) if previous_path.exists() else None
+    if previous and previous.get("project_id") != project["project_id"]:
+        previous = None
     for job in (previous or {}).get("jobs", []):
         if job["state"] == "accepted":
             old = job.get("media_receipt") or {}
@@ -37,6 +39,7 @@ def run_slice(project: dict, root: Path, out: Path, *, receipts: list[Path] = ()
     for name, data in (("queue.json", queue), ("audit.json", summary)):
         (out / name).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     result = {"queue": str(out / "queue.json"), "audit": summary,
+              "rejected_receipts": queue["rejected_receipts"],
               "errors": [e for r in reports.values() for e in r["errors"]]}
     if not no_render:
         preview = copy.deepcopy(project)

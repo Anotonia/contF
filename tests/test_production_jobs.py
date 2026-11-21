@@ -12,6 +12,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from contf.production_jobs import audit, build_jobs, reconcile, prepare_retry, main
 from contf.production_adapter import REQUIRED_REVIEW
+from contf.shot_pipeline import compile_plan
 
 
 def project():
@@ -82,6 +83,85 @@ class ProductionJobTests(unittest.TestCase):
         self.assertEqual(a, build_jobs(self.project, self.root))
         self.assertFalse(a["automatic_provider_execution"])
         self.assertTrue(all(j["state"] == "awaiting-human-approval" for j in a["jobs"]))
+
+    def test_custom_settings_cli_preserves_approval_and_rejects_override(self):
+        project_file = self.root / "project.json"
+        queue_file = self.root / "queue.json"
+        receipt_file = self.root / "receipt.json"
+        project_file.write_text(json.dumps(self.project))
+        base = ["jobs", "plan", "--project", str(project_file), "--root", str(self.root)]
+        with patch.object(sys, "argv", base + ["--width", "320", "--height", "180", "--fps", "8"]):
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(main(), 0)
+        queue = json.loads(output.getvalue())
+        self.assertEqual(queue["plan_settings"], {"width": 320, "height": 180, "fps": 8})
+        queue["jobs"][0]["state"] = "accepted"
+        queue["jobs"][0]["media_receipt"] = verified_receipt(queue["jobs"][0]["fingerprint"])
+        queue_file.write_text(json.dumps(queue))
+        (self.root / "S02.mp4").write_bytes(b"SYNTHETIC media")
+        receipt = {
+            "receipt_version": "0.1.0", "shot_id": "S02", "source_rights": "owned",
+            "producer": "SYNTHETIC", "model_version": "SYNTHETIC-1", "media_path": "S02.mp4",
+            "reviewer": "SYNTHETIC reviewer", "manual_review": {k: "pass" for k in REQUIRED_REVIEW},
+        }
+        args = ["--project", str(project_file), "--root", str(self.root), "--queue", str(queue_file)]
+        with patch("contf.production_adapter.inspect", return_value={"passed": True, "errors": []}):
+            for supplied in (False, True):
+                if supplied:
+                    receipt["fingerprint"] = queue["jobs"][1]["fingerprint"]
+                receipt_file.write_text(json.dumps(receipt))
+                argv = ["jobs", "apply", *args, "--receipt", str(receipt_file)]
+                with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as output:
+                    self.assertEqual(main(), 0)
+                applied = json.loads(output.getvalue())
+                self.assertTrue(all(j["state"] == "accepted" for j in applied["jobs"]))
+                self.assertEqual(applied["plan_settings"], queue["plan_settings"])
+            with patch.object(sys, "argv", ["jobs", "ingest", *args, "--receipt", str(receipt_file)]):
+                with contextlib.redirect_stdout(io.StringIO()) as output:
+                    self.assertEqual(main(), 0)
+            report = json.loads(output.getvalue())
+            self.assertTrue(report["accepted"])
+            receipt_file.write_text(json.dumps(report))
+            with patch.object(sys, "argv", ["jobs", "reconcile", *args, "--receipt", str(receipt_file)]):
+                with contextlib.redirect_stdout(io.StringIO()) as output:
+                    self.assertEqual(main(), 0)
+            self.assertTrue(all(j["state"] == "accepted" for j in json.loads(output.getvalue())["jobs"]))
+        original = queue_file.read_bytes()
+        for command in ("plan", "reconcile", "ingest", "apply", "retry"):
+            for flag, value in (("--width", "640"), ("--height", "360"), ("--fps", "12")):
+                argv = ["jobs", command, *args, flag, value, "--output", str(queue_file)]
+                with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as output:
+                    self.assertEqual(main(), 2)
+                self.assertIn("conflicts with queue plan_settings", output.getvalue())
+                self.assertEqual(queue_file.read_bytes(), original)
+
+    def test_production_fingerprints_are_project_scoped_but_cache_is_not(self):
+        other = copy.deepcopy(self.project)
+        other["project_id"] = "SYNTHETIC-other-project"
+        self.assertEqual(compile_plan(self.project, self.root)["shots"],
+                         compile_plan(other, self.root)["shots"])
+        queue = build_jobs(self.project, self.root)
+        foreign = build_jobs(other, self.root)
+        self.assertNotEqual(queue["jobs"][0]["fingerprint"], foreign["jobs"][0]["fingerprint"])
+        foreign["jobs"][0]["state"] = "accepted"
+        foreign["jobs"][0]["media_receipt"] = verified_receipt(foreign["jobs"][0]["fingerprint"])
+        self.assertEqual(reconcile(queue, foreign)["jobs"][0]["state"], "awaiting-human-approval")
+        result = reconcile(queue, receipts={"S01": foreign["jobs"][0]["media_receipt"]})
+        self.assertEqual(result["jobs"][0]["state"], "blocked-stale-receipt")
+
+    def test_stale_incoming_receipt_preserves_current_verified_acceptance(self):
+        queue = build_jobs(self.project, self.root)
+        previous = copy.deepcopy(queue)
+        accepted = verified_receipt(queue["jobs"][0]["fingerprint"])
+        previous["jobs"][0].update(state="accepted", media_receipt=accepted)
+        stale = verified_receipt("SYNTHETIC-stale")
+        result = reconcile(queue, previous, {"S01": stale})
+        self.assertEqual(result["jobs"][0]["state"], "accepted")
+        self.assertEqual(result["jobs"][0]["media_receipt"], accepted)
+        self.assertEqual(result["rejected_receipts"][0]["receipt"], stale)
+        previous["jobs"][0]["media_receipt"] = {"accepted": True}
+        result = reconcile(queue, previous, {"S01": stale})
+        self.assertEqual(result["jobs"][0]["state"], "blocked-stale-receipt")
 
     def test_cli_reconcile_repeatable_ingest_reports(self):
         queue = build_jobs(self.project, self.root)

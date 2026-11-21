@@ -1,5 +1,6 @@
 """SYNTHETIC offline slice integration, including real generated media."""
 import contextlib
+import copy
 import io
 import json
 from pathlib import Path
@@ -67,6 +68,24 @@ class SliceTests(unittest.TestCase):
             second = run_slice(spec, root, root / "out")
             self.assertEqual(second["render"]["reused_count"], 2)
             self.assertEqual(second["audit"], first["audit"])
+            stale_receipt = {**receipt, "fingerprint": "SYNTHETIC-stale"}
+            path.write_text(json.dumps(stale_receipt))
+            retained = run_slice(spec, root, root / "out", receipts=[path], no_render=True)
+            self.assertTrue(retained["errors"])
+            self.assertEqual(retained["audit"], first["audit"])
+            self.assertEqual(retained["rejected_receipts"][0]["receipt"]["fingerprint"], "SYNTHETIC-stale")
+            self.assertEqual(json.loads((root / "out/queue.json").read_text())["jobs"][0]["state"], "accepted")
+            foreign = copy.deepcopy(spec)
+            foreign["project_id"] = "SYNTHETIC-other-project"
+            foreign_empty = run_slice(foreign, root, root / "out", no_render=True)
+            self.assertEqual(foreign_empty["audit"]["totals"]["counts_by_state"],
+                             {"awaiting-human-approval": 2})
+            path.write_text(json.dumps(receipt))
+            foreign_result = run_slice(foreign, root, root / "out", receipts=[path], no_render=True)
+            self.assertTrue(foreign_result["errors"])
+            self.assertNotEqual(foreign_result["audit"]["shots"][0]["state"], "accepted")
+            path.write_text(json.dumps(receipt))
+            run_slice(spec, root, root / "out", receipts=[path], no_render=True)
             media = root / "SYNTHETIC.mp4"
             original = media.read_bytes()
             media.write_bytes(b"SYNTHETIC invalid changed media")
@@ -84,4 +103,4 @@ class SliceTests(unittest.TestCase):
             path.write_text(json.dumps(receipt))
             stale = run_slice(spec, root, root / "out", receipts=[path], no_render=True)
             self.assertTrue(stale["errors"])
-            self.assertEqual(stale["audit"]["shots"][0]["state"], "blocked-stale-receipt")
+            self.assertEqual(stale["audit"]["shots"][0]["state"], "accepted")

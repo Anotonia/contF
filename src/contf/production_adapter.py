@@ -40,6 +40,10 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def production_fingerprint(project_id: str, cache_key: str) -> str:
+    return hashlib.sha256(json.dumps([project_id, cache_key], ensure_ascii=False).encode()).hexdigest()
+
+
 def ingest(project: dict, receipt: dict, root: Path, *, width: int = 640,
            height: int = 360, fps: int = 12) -> dict:
     """Produce an auditable shot candidate; never silently mark accepted."""
@@ -47,7 +51,7 @@ def ingest(project: dict, receipt: dict, root: Path, *, width: int = 640,
         raise ValueError("receipt must be an object")
     errors = []
     plan = compile_plan(project, root, width=width, height=height, fps=fps)
-    expected_key = next((s["cache_key"] for s in plan["shots"]
+    expected_key = next((production_fingerprint(project["project_id"], s["cache_key"]) for s in plan["shots"]
                          if s["shot_id"] == receipt.get("shot_id")), None)
     if not receipt.get("fingerprint") or receipt.get("fingerprint") != expected_key:
         errors.append("fingerprint missing or does not match current shot plan")

@@ -10,10 +10,10 @@ import hashlib
 import json
 from pathlib import Path
 
-from contf.production_adapter import REQUIRED_REVIEW, ingest
+from contf.production_adapter import REQUIRED_REVIEW, ingest, production_fingerprint
 from contf.shot_pipeline import compile_plan
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 def build_jobs(project: dict, root: Path, *, width: int = 640,
@@ -21,10 +21,11 @@ def build_jobs(project: dict, root: Path, *, width: int = 640,
     plan = compile_plan(project, root, width=width, height=height, fps=fps)
     jobs = []
     for source, item in zip(project["shots"], plan["shots"]):
+        fingerprint = production_fingerprint(project["project_id"], item["cache_key"])
         jobs.append({
-            "job_id": item["shot_id"] + "-" + item["cache_key"][:16],
+            "job_id": item["shot_id"] + "-" + fingerprint[:16],
             "shot_id": item["shot_id"],
-            "fingerprint": item["cache_key"],
+            "fingerprint": fingerprint,
             "duration_s": item["duration_s"],
             "beat": item["beat"],
             "prompt": {
@@ -36,6 +37,7 @@ def build_jobs(project: dict, root: Path, *, width: int = 640,
             "media_receipt": None,
         })
     return {"version": VERSION, "project_id": project["project_id"],
+            "plan_settings": {"width": width, "height": height, "fps": fps},
             "rights": project["rights"], "jobs": jobs,
             "automatic_provider_execution": False,
             "is_final_video": False}
@@ -59,9 +61,12 @@ def _verified_receipt(receipt: dict) -> bool:
 def reconcile(queue: dict, previous: dict | None = None,
               receipts: dict | None = None) -> dict:
     """Retain accepted, fingerprint-matched results only; no stale media reuse."""
+    if previous and previous.get("project_id") != queue["project_id"]:
+        previous = None
     previous_jobs = {j["shot_id"]: j for j in (previous or {}).get("jobs", [])}
     receipts = receipts or {}
     jobs = []
+    rejected_receipts = []
     for planned in queue["jobs"]:
         job = dict(planned)
         old = previous_jobs.get(job["shot_id"])
@@ -75,15 +80,18 @@ def reconcile(queue: dict, previous: dict | None = None,
         receipt = receipts.get(job["shot_id"])
         if receipt is not None:
             if receipt.get("fingerprint") != job["fingerprint"]:
-                job["state"] = "blocked-stale-receipt"
-                job["media_receipt"] = None
+                rejected_receipts.append({"shot_id": job["shot_id"],
+                                          "reason": "stale-fingerprint", "receipt": receipt})
+                if job["state"] != "accepted":
+                    job["state"] = "blocked-stale-receipt"
+                    job["media_receipt"] = None
             else:
                 job["media_receipt"] = receipt
                 job["state"] = ("accepted" if _verified_receipt(receipt)
                                 else "blocked" if receipt.get("errors")
                                 else "pending-human-review")
         jobs.append(job)
-    return {**queue, "jobs": jobs}
+    return {**queue, "jobs": jobs, "rejected_receipts": rejected_receipts}
 
 
 def audit(queue: dict) -> dict:
@@ -157,11 +165,23 @@ def main() -> int:
     parser.add_argument("--shot-id")
     parser.add_argument("--human-approved", action="store_true")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--width", type=int)
+    parser.add_argument("--height", type=int)
+    parser.add_argument("--fps", type=int)
     args = parser.parse_args()
     try:
         project = json.loads(args.project.read_text(encoding="utf-8"))
+        queue = json.loads(args.queue.read_text(encoding="utf-8")) if args.queue else None
+        defaults = {"width": 640, "height": 360, "fps": 12}
+        stored = queue.get("plan_settings", defaults) if queue is not None else defaults
+        settings = {}
+        for key in defaults:
+            explicit = getattr(args, key)
+            if queue is not None and explicit is not None and explicit != stored[key]:
+                raise ValueError(f"--{key} conflicts with queue plan_settings")
+            settings[key] = stored[key] if explicit is None else explicit
         if args.command == "plan":
-            result = build_jobs(project, args.root)
+            result = build_jobs(project, args.root, **settings)
         elif args.command in ("ingest", "apply"):
             if not args.receipt:
                 raise ValueError("--receipt required")
@@ -169,25 +189,24 @@ def main() -> int:
                 raise ValueError(f"{args.command} requires exactly one --receipt")
             receipt = json.loads(args.receipt[0].read_text(encoding="utf-8"))
             if args.command == "ingest":
-                result = ingest(project, receipt, args.root)
+                result = ingest(project, receipt, args.root, **settings)
             else:
                 if not args.queue:
                     raise ValueError("--queue required for apply")
-                previous = json.loads(args.queue.read_text(encoding="utf-8"))
-                planned = build_jobs(project, args.root)
+                previous = queue
+                planned = build_jobs(project, args.root, **settings)
                 matching = [j for j in planned["jobs"] if j["shot_id"] == receipt["shot_id"]]
                 if len(matching) != 1:
                     raise ValueError("receipt shot not found in current plan")
                 receipt.setdefault("fingerprint", matching[0]["fingerprint"])
-                report = ingest(project, receipt, args.root)
+                report = ingest(project, receipt, args.root, **settings)
                 result = reconcile(planned, previous, {report["shot_id"]: report})
         else:
             if not args.queue:
                 raise ValueError("--queue required")
-            queue = json.loads(args.queue.read_text(encoding="utf-8"))
             if args.command == "reconcile":
                 reports = [json.loads(p.read_text(encoding="utf-8")) for p in args.receipt]
-                result = reconcile(build_jobs(project, args.root), queue,
+                result = reconcile(build_jobs(project, args.root, **settings), queue,
                                    {r["shot_id"]: r for r in reports})
             else:
                 if not args.shot_id:
