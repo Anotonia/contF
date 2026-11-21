@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "contF reference cleanup preflight manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "reference_id", "source_url", "captured_at", "source_file", "rights", "processor", "regions", "human_review"],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "reference_id": { "type": "string", "minLength": 1 },
+    "source_url": { "type": ["string", "null"], "format": "uri" },
+    "captured_at": { "type": "string", "format": "date-time" },
+    "source_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "duration_seconds"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "duration_seconds": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "attested", "evidence"],
+      "properties": {
+        "status": { "enum": ["unknown", "owned", "licensed", "public-domain"] },
+        "attested": { "type": "boolean" },
+        "evidence": { "type": ["string", "null"] }
+      }
+    },
+    "processor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_id", "execution_status", "output_file_name"],
+      "properties": {
+        "tool_id": { "enum": ["watermarkout", "vidproc", "media-io", "reclip-api", "none"] },
+        "execution_status": { "enum": ["not-run", "completed", "failed"] },
+        "output_file_name": { "type": ["string", "null"] }
+      }
+    },
+    "regions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["x_pct", "y_pct", "width_pct", "height_pct", "start_s", "end_s"],
+        "properties": {
+          "x_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+          "y_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+          "width_pct": { "type": "number", "exclusiveMinimum": 0, "maximum": 100 },
+          "height_pct": { "type": "number", "exclusiveMinimum": 0, "maximum": 100 },
+          "start_s": { "type": "number", "minimum": 0 },
+          "end_s": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "human_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "notes"],
+      "properties": {
+        "status": { "enum": ["pending", "accepted", "rejected"] },
+        "notes": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
