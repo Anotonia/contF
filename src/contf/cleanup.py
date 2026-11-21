@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import math
+import re
 from datetime import datetime
 from typing import Any, Mapping
 
 
 RIGHTS = {"unknown", "owned", "licensed", "public-domain"}
 TOOLS = {"watermarkout", "vidproc", "media-io", "reclip-api", "none"}
+TIMESTAMP = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
+    r"(?:\.[0-9]+)?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])"
+)
 
 
 def validate_cleanup_manifest(doc: Mapping[str, Any]) -> list[str]:
@@ -83,10 +88,11 @@ def _in_enum(value: Any, options: set[str]) -> bool:
 
 
 def _has_timestamp(value: Any) -> bool:
-    if not isinstance(value, str):
+    if not isinstance(value, str) or not TIMESTAMP.fullmatch(value.upper()):
         return False
     try:
-        return datetime.fromisoformat(value).tzinfo is not None
+        datetime.fromisoformat(value.upper())
+        return True
     except ValueError:
         return False
 

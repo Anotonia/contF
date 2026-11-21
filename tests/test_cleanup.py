@@ -80,6 +80,11 @@ class CleanupManifestTests(unittest.TestCase):
         self.assertIn("captured_at must be an ISO timestamp with a timezone", errors)
         self.assertIn("human_review.notes must be a string or null", errors)
 
+    def test_provenance_rejects_offset_seconds(self):
+        value = copy.deepcopy(BASE)
+        value["captured_at"] = "2026-11-10T03:00:00+03:00:01"
+        self.assertIn("captured_at must be an ISO timestamp with a timezone", validate_cleanup_manifest(value))
+
 
 if __name__ == "__main__":
     unittest.main()
