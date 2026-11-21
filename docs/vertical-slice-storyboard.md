@@ -99,6 +99,14 @@ ignored. Stale incoming receipts are listed in `rejected_receipts`; they cannot
 erase a verified current accepted receipt. Slice still returns receipt errors
 while retaining that approval in queue.json and audit.json.
 
+Media inputs are restricted to plain `.mp4`, `.mov`, `.m4v`, `.mkv`, or `.webm`
+containers with file-only protocols and restricted demuxers; playlists are not
+accepted, even when renamed to a container extension. Preview and manifest paths
+must not alias source/candidate media (including symlinks or hard links). QA
+measures the first non-attached-picture video stream, not audio/container length;
+unknown video duration fails closed. Renderer `storyboard-2` treats percent signs
+literally in captions and invalidates earlier rendered segments.
+
 Receipt `cost` is optional: `{ "amount": 3, "currency": "USD", "source": "billing record reference" }`.
 Omitted cost stays null, including per-shot audit entries. Totals report counts,
 known costs by currency, a single-currency sum (null for none/mixed currencies),

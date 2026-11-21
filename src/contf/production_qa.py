@@ -12,15 +12,18 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from contf.shot_pipeline import MEDIA_INPUT_OPTIONS, validate_media_container
+
 
 def probe(path: Path) -> dict:
     if not path.is_file():
         raise ValueError("candidate media missing")
+    validate_media_container(path)
     if not shutil.which("ffprobe"):
         raise RuntimeError("ffprobe is required for candidate preflight")
     p = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries",
-         "format=duration:stream=codec_type,width,height,avg_frame_rate",
+        ["ffprobe", "-v", "error", *MEDIA_INPUT_OPTIONS, "-show_entries",
+         "stream=index,codec_type,width,height,avg_frame_rate,duration:stream_disposition=attached_pic",
          "-of", "json", str(path)],
         capture_output=True, text=True, check=False, timeout=30,
     )
@@ -29,8 +32,40 @@ def probe(path: Path) -> dict:
     return json.loads(p.stdout)
 
 
+def _video_duration(path: Path, stream: dict) -> float:
+    try:
+        duration = float(stream.get("duration", "nan"))
+    except (TypeError, ValueError):
+        duration = math.nan
+    if math.isfinite(duration) and duration > 0:
+        return duration
+    if "index" not in stream:
+        raise ValueError("video duration cannot be established")
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", *MEDIA_INPUT_OPTIONS,
+         "-select_streams", str(stream["index"]), "-show_packets", "-show_entries",
+         "packet=pts_time,dts_time,duration_time", "-of", "json", str(path)],
+        capture_output=True, text=True, check=False, timeout=30,
+    )
+    if result.returncode:
+        raise RuntimeError("ffprobe video packets failed: " + result.stderr[-500:])
+    starts, ends = [], []
+    for packet in json.loads(result.stdout).get("packets", []):
+        try:
+            start = float(packet.get("pts_time", packet.get("dts_time", "nan")))
+            length = float(packet.get("duration_time", 0))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(start) and math.isfinite(length) and length >= 0:
+            starts.append(start)
+            ends.append(start + length)
+    if not starts or max(ends) <= min(starts):
+        raise ValueError("video duration cannot be established")
+    return max(ends) - min(starts)
+
+
 def inspect(path: Path, *, min_seconds: float = 15, max_seconds: float = 25) -> dict:
-    result = {"candidate": str(path), "passed": False, "errors": [],
+    result = {"candidate": str(path), "passed": False, "errors": [], "duration_s": None,
               "manual_gates": {
                   "character_identity": "pending",
                   "costume_and_prop_continuity": "pending",
@@ -42,11 +77,9 @@ def inspect(path: Path, *, min_seconds: float = 15, max_seconds: float = 25) -> 
               }, "is_final_video": False}
     try:
         info = probe(path)
-        duration = float(info.get("format", {}).get("duration", "nan"))
-        if not math.isfinite(duration) or not min_seconds <= duration <= max_seconds:
-            result["errors"].append("duration outside candidate window")
         streams = info.get("streams", [])
-        video = [s for s in streams if s.get("codec_type") == "video"]
+        video = [s for s in streams if s.get("codec_type") == "video"
+                 and not s.get("disposition", {}).get("attached_pic")]
         audio = [s for s in streams if s.get("codec_type") == "audio"]
         if not video:
             result["errors"].append("video stream missing")
@@ -54,9 +87,13 @@ def inspect(path: Path, *, min_seconds: float = 15, max_seconds: float = 25) -> 
             result["errors"].append("audio stream missing")
         if video and (video[0].get("width", 0) < 640 or video[0].get("height", 0) < 360):
             result["errors"].append("video resolution below 640x360")
-        result["duration_s"] = duration
         result["video_stream_count"] = len(video)
         result["audio_stream_count"] = len(audio)
+        if video:
+            duration = _video_duration(path, video[0])
+            result["duration_s"] = duration
+            if not min_seconds <= duration <= max_seconds:
+                result["errors"].append("duration outside candidate window")
     except (ValueError, RuntimeError, OSError, json.JSONDecodeError,
             subprocess.TimeoutExpired) as exc:
         result["errors"].append(str(exc))

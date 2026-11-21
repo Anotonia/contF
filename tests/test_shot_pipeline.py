@@ -1,11 +1,14 @@
 """Synthetic-only unit and optional local FFmpeg smoke tests."""
 import copy
 import json
+import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -89,6 +92,63 @@ class ShotPipelineTests(unittest.TestCase):
         for value in (float("nan"), float("inf"), True, -1, 91):
             self.project["shots"][0]["duration_s"] = value
             self.assertTrue(validate(self.project, self.root), repr(value))
+
+    def test_playlist_extensions_rejected_including_symlink_alias(self):
+        shot = self.project["shots"][0]
+        shot["source_rights"] = "owned"
+        for suffix in (".m3u8", ".txt", ".ffconcat", ".m3u"):
+            playlist = self.root / ("SYNTHETIC" + suffix)
+            playlist.write_text("file '../outside.mp4'\n")
+            shot["source_media"] = playlist.name
+            self.assertTrue(any("plain container" in e for e in validate(self.project, self.root)))
+        alias = self.root / "SYNTHETIC-alias.mp4"
+        alias.symlink_to(playlist)
+        shot["source_media"] = alias.name
+        self.assertTrue(any("plain container" in e for e in validate(self.project, self.root)))
+
+    def test_preview_and_manifest_cannot_alias_source(self):
+        media = self.root / "SYNTHETIC.mp4"
+        media.write_bytes(b"SYNTHETIC source bytes")
+        self.project["shots"][0].update(source_media=media.name, source_rights="owned")
+        outputs = [media, self.root / "symlink.mp4", self.root / "hardlink.mp4",
+                   self.root / "manifest-symlink.mp4", self.root / "manifest-hardlink.mp4"]
+        outputs[1].symlink_to(media)
+        os.link(media, outputs[2])
+        outputs[3].with_suffix(".manifest.json").symlink_to(media)
+        os.link(media, outputs[4].with_suffix(".manifest.json"))
+        with patch("contf.shot_pipeline.shutil.which", return_value="ffmpeg"):
+            with patch("contf.shot_pipeline._command") as command:
+                for output in outputs:
+                    with self.assertRaisesRegex(ValueError, "overwrite source"):
+                        render_preview(self.project, self.root, output, self.root / "cache")
+                    self.assertEqual(media.read_bytes(), b"SYNTHETIC source bytes")
+                command.assert_not_called()
+        self.assertFalse((self.root / "cache").exists())
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg not installed")
+    def test_percent_caption_draws_nonuniform_frame(self):
+        self.project["shots"][0]["title"] = "SYNTHETIC 100% original"
+        self.project["shots"] = self.project["shots"][:1]
+        output = self.root / "percent.mp4"
+        render_preview(self.project, self.root, output, self.root / "cache", width=640, height=360)
+        frame = subprocess.check_output(["ffmpeg", "-v", "error", "-i", str(output),
+                                         "-frames:v", "1", "-pix_fmt", "gray", "-f", "rawvideo", "-"])
+        self.assertEqual(len(frame), 640 * 360)
+        self.assertGreater(max(frame) - min(frame), 100)
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg not installed")
+    def test_playlist_disguised_as_container_cannot_render(self):
+        outside = self.root / "SYNTHETIC-outside.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                        "color=blue:size=640x360:duration=1", "-c:v", "libx264",
+                        "-preset", "ultrafast", str(outside)], check=True)
+        media_root = self.root / "inputs"
+        media_root.mkdir()
+        source = media_root / "SYNTHETIC.mp4"
+        source.write_text("ffconcat version 1.0\nfile '../SYNTHETIC-outside.mp4'\n")
+        self.project["shots"][0].update(source_media=source.name, source_rights="owned")
+        with self.assertRaises(RuntimeError):
+            render_preview(self.project, media_root, self.root / "out.mp4", self.root / "cache")
 
     def test_cli_validate_and_plan(self):
         project_file = self.root / "project.json"

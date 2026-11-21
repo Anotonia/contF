@@ -12,7 +12,7 @@ import math
 from pathlib import Path
 
 from contf.production_qa import inspect
-from contf.shot_pipeline import compile_plan
+from contf.shot_pipeline import compile_plan, validate_media_container
 
 RECEIPT_VERSION = "0.1.0"
 REQUIRED_REVIEW = (
@@ -29,6 +29,7 @@ def _safe_media(root: Path, relative: str) -> Path:
     media = (root / relative).resolve()
     if root not in media.parents or not media.is_file():
         raise ValueError("media_path escapes root or is missing")
+    validate_media_container(root / relative)
     return media
 
 

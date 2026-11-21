@@ -7,7 +7,7 @@ from pathlib import Path
 
 from contf.production_adapter import ingest
 from contf.production_jobs import audit, build_jobs, reconcile
-from contf.shot_pipeline import render_preview
+from contf.shot_pipeline import render_preview, validate_preview_destinations
 
 
 def run_slice(project: dict, root: Path, out: Path, *, receipts: list[Path] = (),
@@ -35,6 +35,17 @@ def run_slice(project: dict, root: Path, out: Path, *, receipts: list[Path] = ()
         reports[report["shot_id"]] = report
     queue = reconcile(planned, previous, reports)
     summary = audit(queue)
+    preview = copy.deepcopy(project)
+    for shot, job in zip(preview["shots"], queue["jobs"]):
+        if job["state"] == "accepted":
+            receipt = job["media_receipt"]
+            shot["source_media"] = receipt["media_path"]
+            shot["source_rights"] = "owned" if receipt.get("source_rights") == "owned" else "licensed"
+            shot["review_status"] = "accepted"
+    evidence = [*reports.values(), *(j.get("media_receipt") or {} for j in queue["jobs"])]
+    media_paths = [r["media_path"] for r in evidence if r.get("media_sha256") and r.get("media_path")]
+    validate_preview_destinations(project, root, out / "preview.mp4", media_paths=media_paths)
+    validate_preview_destinations(preview, root, out / "preview.mp4")
     out.mkdir(parents=True, exist_ok=True)
     for name, data in (("queue.json", queue), ("audit.json", summary)):
         (out / name).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
@@ -42,12 +53,5 @@ def run_slice(project: dict, root: Path, out: Path, *, receipts: list[Path] = ()
               "rejected_receipts": queue["rejected_receipts"],
               "errors": [e for r in reports.values() for e in r["errors"]]}
     if not no_render:
-        preview = copy.deepcopy(project)
-        for shot, job in zip(preview["shots"], queue["jobs"]):
-            if job["state"] == "accepted":
-                receipt = job["media_receipt"]
-                shot["source_media"] = receipt["media_path"]
-                shot["source_rights"] = "owned" if receipt.get("source_rights") == "owned" else "licensed"
-                shot["review_status"] = "accepted"
         result["render"] = render_preview(preview, root, out / "preview.mp4", out / "cache", **settings)
     return result

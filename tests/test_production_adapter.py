@@ -60,6 +60,17 @@ class ProductionAdapterTests(unittest.TestCase):
         self.assertFalse(result["accepted"])
         self.assertIsNone(result["media_sha256"])
 
+    def test_playlist_receipt_rejected_before_preflight(self):
+        for suffix in (".m3u8", ".txt", ".ffconcat", ".m3u"):
+            path = self.root / ("SYNTHETIC" + suffix)
+            path.write_text("file '../outside.mp4'\n")
+            self.receipt["media_path"] = path.name
+            with patch("contf.production_adapter.inspect") as preflight:
+                result = ingest(self.project, self.receipt, self.root)
+                preflight.assert_not_called()
+            self.assertFalse(result["accepted"])
+            self.assertTrue(any("plain container" in e for e in result["errors"]))
+
     def test_paid_generation_requires_approval(self):
         self.receipt["paid_generation"] = True
         with patch("contf.production_adapter.inspect", return_value=self.ok):

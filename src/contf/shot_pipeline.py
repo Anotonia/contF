@@ -17,7 +17,9 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "0.2.0"
-RENDER_VERSION = "storyboard-1"
+RENDER_VERSION = "storyboard-2"
+MEDIA_EXTENSIONS = {".mp4", ".mov", ".m4v", ".mkv", ".webm"}
+MEDIA_INPUT_OPTIONS = ["-protocol_whitelist", "file", "-format_whitelist", "mov,matroska,webm"]
 BEATS = {"hook", "setup", "conflict", "escalation", "reaction", "reversal", "payoff", "loop"}
 COLORS = {
     "hook": "0x264653", "setup": "0x26547C", "conflict": "0x9B2226",
@@ -30,6 +32,11 @@ def _number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def validate_media_container(path: Path) -> None:
+    if path.suffix.lower() not in MEDIA_EXTENSIONS or path.resolve().suffix.lower() not in MEDIA_EXTENSIONS:
+        raise ValueError("media must be a plain container: mp4, mov, m4v, mkv or webm")
+
+
 def _media_path(root: Path, name: str) -> Path:
     """Only local files inside the explicit media root; reject path traversal."""
     if not isinstance(name, str) or not name or Path(name).is_absolute():
@@ -40,7 +47,21 @@ def _media_path(root: Path, name: str) -> Path:
         raise ValueError("source_media escapes media root")
     if not path.is_file():
         raise ValueError("source_media does not exist: " + name)
+    validate_media_container(root / name)
     return path
+
+
+def validate_preview_destinations(project: dict, root: Path, output: Path,
+                                  *, media_paths: list[str] | None = None) -> None:
+    output = output.resolve()
+    destinations = (output, output.with_suffix(".manifest.json"))
+    names = [s["source_media"] for s in project["shots"] if s.get("source_media") is not None]
+    names.extend(name for name in (media_paths or []) if (root / name).is_file())
+    for name in names:
+        source = _media_path(root, name)
+        for destination in destinations:
+            if destination.resolve() == source or (destination.exists() and destination.samefile(source)):
+                raise ValueError("preview or manifest would overwrite source media")
 
 
 def validate(project: Any, root: Path) -> list[str]:
@@ -164,13 +185,14 @@ def _render_shot(shot: dict[str, Any], root: Path, destination: Path,
             f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
             f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
             f"fps={fps},"
-            f"drawtext=textfile='{path}':fontsize=20:fontcolor=white:"
+            f"drawtext=textfile='{path}':expansion=none:fontsize=20:fontcolor=white:"
             f"x=(w-text_w)/2:y=(h-text_h)/2:box=1:"
             f"boxcolor=black@0.75:boxborderw=10"
         )
         duration = str(shot["duration_s"])
         if shot.get("source_media"):
-            input_args = ["-stream_loop", "-1", "-i", str(_media_path(root, shot["source_media"]))]
+            input_args = [*MEDIA_INPUT_OPTIONS, "-stream_loop", "-1", "-i",
+                          str(_media_path(root, shot["source_media"]))]
         else:
             input_args = [
                 "-f", "lavfi", "-i",
@@ -189,6 +211,7 @@ def render_preview(project: dict[str, Any], root: Path, output: Path, cache: Pat
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg is not installed")
     plan = compile_plan(project, root, width=width, height=height, fps=fps)
+    validate_preview_destinations(project, root, output)
     output = output.resolve()
     cache = cache.resolve()
     cache.mkdir(parents=True, exist_ok=True)
@@ -220,7 +243,7 @@ def render_preview(project: dict[str, Any], root: Path, output: Path, cache: Pat
         temp_output = Path(tmp) / "preview.mp4"
         _command([
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
-            "-f", "concat", "-safe", "0", "-i", str(manifest),
+            "-protocol_whitelist", "file", "-f", "concat", "-safe", "0", "-i", str(manifest),
             "-c", "copy", "-movflags", "+faststart", str(temp_output),
         ])
         shutil.copyfile(temp_output, output)

@@ -20,6 +20,40 @@ from test_production_jobs import project
 
 
 class SliceTests(unittest.TestCase):
+    def test_slice_rejects_preview_source_before_writing_queue_or_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "out"
+            out.mkdir()
+            media = out / "preview.mp4"
+            media.write_bytes(b"SYNTHETIC source media")
+            audit_path = out / "audit.json"
+            audit_path.write_text("SYNTHETIC existing audit")
+            spec = project()
+            spec["shots"][0].update(source_media="out/preview.mp4", source_rights="owned")
+            with self.assertRaisesRegex(ValueError, "overwrite source"):
+                run_slice(spec, root, out)
+            self.assertFalse((out / "queue.json").exists())
+            self.assertEqual(audit_path.read_text(), "SYNTHETIC existing audit")
+            spec["shots"][0]["source_media"] = None
+            receipt = {"receipt_version": "0.1.0", "shot_id": "S01",
+                       "fingerprint": build_jobs(spec, root)["jobs"][0]["fingerprint"],
+                       "producer": "SYNTHETIC", "model_version": "SYNTHETIC-1",
+                       "media_path": "out/preview.mp4", "source_rights": "owned",
+                       "reviewer": "SYNTHETIC reviewer",
+                       "manual_review": {k: "pass" for k in REQUIRED_REVIEW}}
+            path = root / "receipt.json"
+            path.write_text(json.dumps(receipt))
+            with patch("contf.production_adapter.inspect", return_value={"passed": True, "errors": []}):
+                for gate_state in ("pass", "pending"):
+                    receipt["manual_review"] = {k: gate_state for k in REQUIRED_REVIEW}
+                    path.write_text(json.dumps(receipt))
+                    with self.assertRaisesRegex(ValueError, "overwrite source"):
+                        run_slice(spec, root, out, receipts=[path])
+            self.assertFalse((out / "queue.json").exists())
+            self.assertEqual(audit_path.read_text(), "SYNTHETIC existing audit")
+            self.assertEqual(media.read_bytes(), b"SYNTHETIC source media")
+
     def test_invalid_cli_project(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
