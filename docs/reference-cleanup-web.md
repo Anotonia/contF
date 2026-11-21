@@ -32,6 +32,6 @@ One object records `reference_id`, `source_url`, `captured_at`, `source_file`, `
 
 ## Decision / measurable P0 test
 
-**Decision: narrow.** Use this as manual preflight only; no API or open-source engine vendoring until one owned 12–25s source is evaluated. Compare no-cleanup baseline vs WatermarkOut vs VidProc on identical authorization-cleared footage. Log output fidelity (moving edge / text / face artifact), segment alignment, time-to-usable shot map, correction count, review minutes, actual spend and export reliability. Use Media.io later for a separately licensed 3–5min source if short-form quality passes.
+**Decision: narrow.** Use this as manual preflight only; no API or open-source engine vendoring until one owned 12–20s source is evaluated within the documented VidProc guest limit. Compare no-cleanup baseline vs WatermarkOut vs VidProc on identical authorization-cleared footage. Log output fidelity (moving edge / text / face artifact), segment alignment, time-to-usable shot map, correction count, review minutes, actual spend and export reliability. Use Media.io later for a separately licensed 3–5min source if short-form quality passes.
 
 **Adopt gate:** two reviewed samples, no material reconstruction errors at important beat/cut frames, useful drop in human inspection effort, verified processor privacy/license, reproducible manual handoff. Otherwise keep the opt-in link only or reject. Generated clips and audience metrics remain separate from this preprocessing comparison.

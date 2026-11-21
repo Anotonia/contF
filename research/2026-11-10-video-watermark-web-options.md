@@ -21,4 +21,4 @@
 
 ## Next test
 
-Obtain one owned/expressly licensed Maya & Ethan 12–25s video with a **synthetic overlay added by the user** (so exact unmarked original is available as ground truth). Compare WatermarkOut and VidProc with the same manually marked region. Measure cleanup artifacts at 3 fixed frames, actual runtime, failed exports and person-minutes needed to produce the accepted shot/beat map. Then decide **adopt / narrow / reject**; there is currently insufficient evidence to automate or vendor either engine.
+Obtain one owned/expressly licensed Maya & Ethan 12–20s video within the documented VidProc guest limit, with a **synthetic overlay added by the user** (so exact unmarked original is available as ground truth). Compare WatermarkOut and VidProc with the same manually marked region. Measure cleanup artifacts at 3 fixed frames, actual runtime, failed exports and person-minutes needed to produce the accepted shot/beat map. Then decide **adopt / narrow / reject**; there is currently insufficient evidence to automate or vendor either engine.
