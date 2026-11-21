@@ -149,7 +149,7 @@ def prepare_retry(queue: dict, shot_id: str, *, human_approved: bool = False) ->
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Offline contF shot task orchestrator")
-    parser.add_argument("command", choices=("plan", "reconcile", "retry", "ingest"))
+    parser.add_argument("command", choices=("plan", "reconcile", "retry", "ingest", "apply"))
     parser.add_argument("--project", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--queue", type=Path)
@@ -162,13 +162,25 @@ def main() -> int:
         project = json.loads(args.project.read_text(encoding="utf-8"))
         if args.command == "plan":
             result = build_jobs(project, args.root)
-        elif args.command == "ingest":
+        elif args.command in ("ingest", "apply"):
             if not args.receipt:
                 raise ValueError("--receipt required")
             if len(args.receipt) != 1:
-                raise ValueError("ingest requires exactly one --receipt")
+                raise ValueError(f"{args.command} requires exactly one --receipt")
             receipt = json.loads(args.receipt[0].read_text(encoding="utf-8"))
-            result = ingest(project, receipt, args.root)
+            if args.command == "ingest":
+                result = ingest(project, receipt, args.root)
+            else:
+                if not args.queue:
+                    raise ValueError("--queue required for apply")
+                previous = json.loads(args.queue.read_text(encoding="utf-8"))
+                planned = build_jobs(project, args.root)
+                matching = [j for j in planned["jobs"] if j["shot_id"] == receipt["shot_id"]]
+                if len(matching) != 1:
+                    raise ValueError("receipt shot not found in current plan")
+                receipt.setdefault("fingerprint", matching[0]["fingerprint"])
+                report = ingest(project, receipt, args.root)
+                result = reconcile(planned, previous, {report["shot_id"]: report})
         else:
             if not args.queue:
                 raise ValueError("--queue required")

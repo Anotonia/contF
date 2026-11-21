@@ -81,6 +81,13 @@ dimensions/FPS are part of that contract. The standalone
 `python -m contf.production_jobs reconcile --project ... --root ... --queue ...
 --receipt ingest-report.json` accepts repeatable **ingest reports**, not raw receipts.
 
+To ingest and reconcile one raw receipt in a single step, use
+`python -m contf.production_jobs apply --project project.json --root . --queue queue.json --receipt receipt.json --output updated-queue.json`.
+`apply` binds an omitted fingerprint to the current plan before ingestion; a
+provided mismatched fingerprint is rejected. Acceptance still requires local
+preflight and human review, never a provider's accepted flag. Both `apply` and
+`ingest` require exactly one `--receipt`.
+
 Receipt `cost` is optional: `{ "amount": 3, "currency": "USD", "source": "billing record reference" }`.
 Omitted cost stays null, including per-shot audit entries. Totals report counts,
 known costs by currency, a single-currency sum (null for none/mixed currencies),

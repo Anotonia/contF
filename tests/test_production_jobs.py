@@ -145,12 +145,82 @@ class ProductionJobTests(unittest.TestCase):
         updated = reconcile(build_jobs(self.project, self.root), queue)
         self.assertEqual(updated["jobs"][0]["state"], "pending-human-review")
 
+    def test_apply_cli_ingests_file_and_preserves_other_shot(self):
+        media = self.root / "S02.mp4"
+        media.write_bytes(b"SYNTHETIC local media fixture")
+        project_file = self.root / "project.json"
+        queue_file = self.root / "queue.json"
+        receipt_file = self.root / "receipt.json"
+        output_file = self.root / "updated.json"
+        project_file.write_text(json.dumps(self.project), encoding="utf-8")
+        queue = build_jobs(self.project, self.root)
+        queue["jobs"][0]["state"] = "accepted"
+        queue["jobs"][0]["media_receipt"] = verified_receipt(queue["jobs"][0]["fingerprint"])
+        queue_file.write_text(json.dumps(queue), encoding="utf-8")
+        receipt = {
+            "receipt_version": "0.1.0", "shot_id": "S02",
+            "source_rights": "owned", "producer": "SYNTHETIC-local",
+            "model_version": "fixture-1", "media_path": "S02.mp4",
+            "paid_generation": False,
+            "manual_review": {key: "pending" for key in REQUIRED_REVIEW},
+        }
+        receipt_file.write_text(json.dumps(receipt), encoding="utf-8")
+        argv = ["production_jobs", "apply", "--project", str(project_file),
+                "--root", str(self.root), "--queue", str(queue_file),
+                "--receipt", str(receipt_file), "--output", str(output_file)]
+        with patch("contf.production_adapter.inspect",
+                   return_value={"passed": True, "errors": [], "duration_s": 10}):
+            with patch.object(sys, "argv", argv):
+                self.assertEqual(main(), 0)
+        result = json.loads(output_file.read_text(encoding="utf-8"))
+        self.assertEqual(result["jobs"][0]["state"], "accepted")
+        self.assertEqual(result["jobs"][1]["state"], "pending-human-review")
+        self.assertEqual(len(result["jobs"][1]["media_receipt"]["media_sha256"]), 64)
+        self.assertFalse(result["jobs"][1]["media_receipt"]["accepted"])
+
     def test_stale_receipt_blocks_acceptance(self):
         queue = build_jobs(self.project, self.root)
         updated = reconcile(queue, receipts={"S01": {"fingerprint": "wrong",
                                                       "accepted": True}})
         self.assertEqual(updated["jobs"][0]["state"], "blocked-stale-receipt")
         self.assertIsNone(updated["jobs"][0]["media_receipt"])
+
+    def test_apply_rejects_provided_mismatched_fingerprint(self):
+        (self.root / "S01.mp4").write_bytes(b"SYNTHETIC local media fixture")
+        project_file = self.root / "project.json"
+        queue_file = self.root / "queue.json"
+        receipt_file = self.root / "receipt.json"
+        project_file.write_text(json.dumps(self.project), encoding="utf-8")
+        queue_file.write_text(json.dumps(build_jobs(self.project, self.root)), encoding="utf-8")
+        receipt = {
+            "receipt_version": "0.1.0", "shot_id": "S01", "fingerprint": "stale",
+            "source_rights": "owned", "producer": "SYNTHETIC-local",
+            "model_version": "fixture-1", "media_path": "S01.mp4",
+            "reviewer": "SYNTHETIC reviewer", "accepted": True,
+            "manual_review": {key: "pass" for key in REQUIRED_REVIEW},
+        }
+        receipt_file.write_text(json.dumps(receipt), encoding="utf-8")
+        argv = ["production_jobs", "apply", "--project", str(project_file),
+                "--root", str(self.root), "--queue", str(queue_file),
+                "--receipt", str(receipt_file)]
+        with patch("contf.production_adapter.inspect",
+                   return_value={"passed": True, "errors": [], "duration_s": 10}):
+            with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(main(), 0)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["jobs"][0]["state"], "blocked-stale-receipt")
+        self.assertIsNone(result["jobs"][0]["media_receipt"])
+
+    def test_apply_and_ingest_require_exactly_one_receipt(self):
+        project_file = self.root / "project.json"
+        project_file.write_text(json.dumps(self.project), encoding="utf-8")
+        for command in ("apply", "ingest"):
+            argv = ["production_jobs", command, "--project", str(project_file),
+                    "--root", str(self.root), "--receipt", "unused.json",
+                    "--receipt", "also-unused.json"]
+            with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(main(), 2)
+            self.assertIn("requires exactly one --receipt", output.getvalue())
 
 
 if __name__ == "__main__":
