@@ -26,28 +26,28 @@ def main() -> int:
     run.add_argument("--tolerance-hours", type=float, default=12.0)
     run.add_argument("--min-comparable", type=int, default=5)
     run.add_argument("--json", action="store_true", help="Machine-readable output")
-    slice_cmd = sub.add_parser('slice', help='Offline shot queue, audit and storyboard preview')
-    slice_cmd.add_argument('project', type=Path)
-    slice_cmd.add_argument('--root', type=Path, default=Path('.'))
-    slice_cmd.add_argument('--out', type=Path, required=True)
-    slice_cmd.add_argument('--receipt', type=Path, action='append', default=[])
-    slice_cmd.add_argument('--no-render', action='store_true')
-    slice_cmd.add_argument('--width', type=int, default=640)
-    slice_cmd.add_argument('--height', type=int, default=360)
-    slice_cmd.add_argument('--fps', type=int, default=12)
+    slice_cmd = sub.add_parser("slice", help="Offline shot queue, audit and storyboard preview")
+    slice_cmd.add_argument("project", type=Path)
+    slice_cmd.add_argument("--root", type=Path, default=Path("."))
+    slice_cmd.add_argument("--out", type=Path, required=True)
+    slice_cmd.add_argument("--receipt", type=Path, action="append", default=[])
+    slice_cmd.add_argument("--no-render", action="store_true")
+    slice_cmd.add_argument("--width", type=int, default=640)
+    slice_cmd.add_argument("--height", type=int, default=360)
+    slice_cmd.add_argument("--fps", type=int, default=12)
     args = parser.parse_args()
-    if args.command == 'slice':
+    if args.command == "slice":
         from .slice import run_slice
         try:
-            result = run_slice(json.loads(args.project.read_text(encoding='utf-8')),
+            result = run_slice(json.loads(args.project.read_text(encoding="utf-8")),
                                args.root, args.out, receipts=args.receipt,
                                no_render=args.no_render, width=args.width,
                                height=args.height, fps=args.fps)
         except (ValueError, OSError, RuntimeError, KeyError, TypeError) as exc:
-            print(json.dumps({'error': str(exc)}))
+            print(json.dumps({"error": str(exc)}))
             return 2
         print(json.dumps(result, indent=2))
-        return 2 if result['errors'] else 0
+        return 2 if result["errors"] else 0
     if args.command == "review":
         result = review(
             load_rows(args.experiments), load_rows(args.observations),

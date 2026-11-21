@@ -84,8 +84,11 @@ dimensions/FPS are part of that contract. The standalone
 Receipt `cost` is optional: `{ "amount": 3, "currency": "USD", "source": "billing record reference" }`.
 Omitted cost stays null, including per-shot audit entries. Totals report counts,
 known costs by currency, a single-currency sum (null for none/mixed currencies),
-unknown-cost count, and cost per accepted minute only when every shot has known
-cost, one currency and positive accepted duration. It includes rejected/pending
+unknown-cost count among jobs with receipts, and a separate `not_produced_count`
+for jobs without receipts. Cost per accepted minute is computed when every receipt
+has known cost, one currency and positive accepted duration; unproduced jobs do
+not block it. The sample reports 15.0 USD per accepted minute, zero unknown-cost
+receipts and 15 not-produced shots. It includes rejected/pending
 costs in the numerator; it is a current-queue snapshot, not a historical invoice
 ledger across superseded attempts. No exchange rates or costs are inferred.
 Every output is explicitly non-final and unpublished. Synthetic gate passes

@@ -44,23 +44,23 @@ def ingest(project: dict, receipt: dict, root: Path, *, width: int = 640,
            height: int = 360, fps: int = 12) -> dict:
     """Produce an auditable shot candidate; never silently mark accepted."""
     if not isinstance(receipt, dict):
-        raise ValueError('receipt must be an object')
+        raise ValueError("receipt must be an object")
     errors = []
     plan = compile_plan(project, root, width=width, height=height, fps=fps)
-    expected_key = next((s['cache_key'] for s in plan['shots']
-                         if s['shot_id'] == receipt.get('shot_id')), None)
-    if not receipt.get('fingerprint') or receipt.get('fingerprint') != expected_key:
-        errors.append('fingerprint missing or does not match current shot plan')
-    cost = receipt.get('cost')
+    expected_key = next((s["cache_key"] for s in plan["shots"]
+                         if s["shot_id"] == receipt.get("shot_id")), None)
+    if not receipt.get("fingerprint") or receipt.get("fingerprint") != expected_key:
+        errors.append("fingerprint missing or does not match current shot plan")
+    cost = receipt.get("cost")
     if cost is not None:
         if (not isinstance(cost, dict)
-                or isinstance(cost.get('amount'), bool)
-                or not isinstance(cost.get('amount'), (int, float))
-                or not math.isfinite(cost['amount']) or cost['amount'] < 0
-                or not isinstance(cost.get('currency'), str)
-                or len(cost['currency']) != 3 or not cost['currency'].isupper()
-                or not isinstance(cost.get('source'), str) or not cost['source'].strip()):
-            errors.append('cost must contain nonnegative finite amount, currency and source')
+                or isinstance(cost.get("amount"), bool)
+                or not isinstance(cost.get("amount"), (int, float))
+                or not math.isfinite(cost["amount"]) or cost["amount"] < 0
+                or not isinstance(cost.get("currency"), str)
+                or len(cost["currency"]) != 3 or not cost["currency"].isupper()
+                or not isinstance(cost.get("source"), str) or not cost["source"].strip()):
+            errors.append("cost must contain nonnegative finite amount, currency and source")
             cost = None
     shots = project.get("shots", [])
     if project.get("rights") != "owned-original":
@@ -105,7 +105,7 @@ def ingest(project: dict, receipt: dict, root: Path, *, width: int = 640,
         errors.append("reviewer must be a string")
     manual_pass = all(manual.get(gate) == "pass" for gate in REQUIRED_REVIEW)
     # A reviewer must be explicitly named before an accepted status is possible.
-    accepted = not errors and manual_pass and bool((receipt.get("reviewer") or '').strip())
+    accepted = not errors and manual_pass and bool((receipt.get("reviewer") or "").strip())
     return {
         "receipt_version": RECEIPT_VERSION,
         "shot_id": shot_id,

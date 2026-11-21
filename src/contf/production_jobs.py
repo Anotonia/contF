@@ -92,35 +92,39 @@ def audit(queue: dict) -> dict:
     counts = {}
     sums = {}
     unknown = 0
+    not_produced = 0
     accepted_seconds = 0
-    for job in queue['jobs']:
-        receipt = job.get('media_receipt') or {}
-        cost = receipt.get('cost')
-        counts[job['state']] = counts.get(job['state'], 0) + 1
-        if cost is None:
+    for job in queue["jobs"]:
+        receipt = job.get("media_receipt") or {}
+        cost = receipt.get("cost")
+        counts[job["state"]] = counts.get(job["state"], 0) + 1
+        if job.get("media_receipt") is None:
+            not_produced += 1
+        elif cost is None:
             unknown += 1
         else:
-            currency = cost['currency']
-            sums[currency] = sums.get(currency, 0) + cost['amount']
-        if job['state'] == 'accepted':
-            accepted_seconds += job['duration_s']
+            currency = cost["currency"]
+            sums[currency] = sums.get(currency, 0) + cost["amount"]
+        if job["state"] == "accepted":
+            accepted_seconds += job["duration_s"]
         shots.append({
-            'shot_id': job['shot_id'], 'fingerprint': job['fingerprint'],
-            'state': job['state'], 'attempt': job['attempt'],
+            "shot_id": job["shot_id"], "fingerprint": job["fingerprint"],
+            "state": job["state"], "attempt": job["attempt"],
             **{key: receipt.get(key) for key in
-               ('producer', 'model_version', 'media_sha256', 'reviewer', 'cost')},
+               ("producer", "model_version", "media_sha256", "reviewer", "cost")},
         })
     currency = next(iter(sums)) if len(sums) == 1 else None
     known_sum = sums[currency] if currency else None
     return {
-        'schema_version': VERSION, 'project_id': queue['project_id'],
-        'shots': shots, 'is_final_video': False, 'published': False,
-        'every_shot_accepted': bool(shots) and all(s['state'] == 'accepted' for s in shots),
-        'totals': {'counts_by_state': counts, 'known_cost_sum': known_sum,
-                   'currency': currency, 'known_cost_by_currency': sums,
-                   'unknown_cost_count': unknown,
-                   'accepted_seconds': accepted_seconds,
-                   'cost_per_accepted_minute': (
+        "schema_version": VERSION, "project_id": queue["project_id"],
+        "shots": shots, "is_final_video": False, "published": False,
+        "every_shot_accepted": bool(shots) and all(s["state"] == "accepted" for s in shots),
+        "totals": {"counts_by_state": counts, "known_cost_sum": known_sum,
+                   "currency": currency, "known_cost_by_currency": sums,
+                   "unknown_cost_count": unknown,
+                   "not_produced_count": not_produced,
+                   "accepted_seconds": accepted_seconds,
+                   "cost_per_accepted_minute": (
                        known_sum / (accepted_seconds / 60)
                        if currency and not unknown and accepted_seconds > 0 else None)},
     }
@@ -172,7 +176,7 @@ def main() -> int:
             if args.command == "reconcile":
                 reports = [json.loads(p.read_text(encoding="utf-8")) for p in args.receipt]
                 result = reconcile(build_jobs(project, args.root), queue,
-                                   {r['shot_id']: r for r in reports})
+                                   {r["shot_id"]: r for r in reports})
             else:
                 if not args.shot_id:
                     raise ValueError("--shot-id required")

@@ -35,25 +35,41 @@ def verified_receipt(fingerprint):
 
 class ProductionJobTests(unittest.TestCase):
     def test_audit_empty_and_unknown(self):
-        empty = audit({'project_id': 'SYNTHETIC', 'jobs': []})
-        self.assertFalse(empty['every_shot_accepted'])
-        self.assertIsNone(empty['totals']['cost_per_accepted_minute'])
-        result = audit(build_jobs(project(), Path('.')))
-        self.assertEqual(result['totals']['unknown_cost_count'], 2)
-        self.assertIsNone(result['totals']['known_cost_sum'])
-        self.assertIsNone(result['shots'][0]['cost'])
+        empty = audit({"project_id": "SYNTHETIC", "jobs": []})
+        self.assertFalse(empty["every_shot_accepted"])
+        self.assertIsNone(empty["totals"]["cost_per_accepted_minute"])
+        result = audit(build_jobs(project(), Path(".")))
+        self.assertEqual(result["totals"]["unknown_cost_count"], 0)
+        self.assertEqual(result["totals"]["not_produced_count"], 2)
+        self.assertIsNone(result["totals"]["known_cost_sum"])
+        self.assertIsNone(result["shots"][0]["cost"])
+
+    def test_audit_partial_production_and_unknown_receipt_cost(self):
+        queue = build_jobs(project(), Path("."))
+        job = queue["jobs"][0]
+        job["state"] = "accepted"
+        job["media_receipt"] = {"cost": {"amount": 3, "currency": "USD", "source": "SYNTHETIC"}}
+        totals = audit(queue)["totals"]
+        self.assertEqual(totals["unknown_cost_count"], 0)
+        self.assertEqual(totals["not_produced_count"], 1)
+        self.assertEqual(totals["cost_per_accepted_minute"], 18)
+        queue["jobs"][1]["media_receipt"] = {}
+        totals = audit(queue)["totals"]
+        self.assertEqual(totals["unknown_cost_count"], 1)
+        self.assertEqual(totals["not_produced_count"], 0)
+        self.assertIsNone(totals["cost_per_accepted_minute"])
 
     def test_audit_known_and_mixed_currency(self):
-        queue = build_jobs(project(), Path('.'))
-        for job in queue['jobs']:
-            job['state'] = 'accepted'
-            job['media_receipt'] = {'cost': {'amount': 2, 'currency': 'USD', 'source': 'SYNTHETIC'}}
+        queue = build_jobs(project(), Path("."))
+        for job in queue["jobs"]:
+            job["state"] = "accepted"
+            job["media_receipt"] = {"cost": {"amount": 2, "currency": "USD", "source": "SYNTHETIC"}}
         result = audit(queue)
-        self.assertTrue(result['every_shot_accepted'])
-        self.assertEqual(result['totals']['known_cost_sum'], 4)
-        self.assertEqual(result['totals']['cost_per_accepted_minute'], 12)
-        queue['jobs'][0]['media_receipt']['cost']['currency'] = 'EUR'
-        self.assertIsNone(audit(queue)['totals']['known_cost_sum'])
+        self.assertTrue(result["every_shot_accepted"])
+        self.assertEqual(result["totals"]["known_cost_sum"], 4)
+        self.assertEqual(result["totals"]["cost_per_accepted_minute"], 12)
+        queue["jobs"][0]["media_receipt"]["cost"]["currency"] = "EUR"
+        self.assertIsNone(audit(queue)["totals"]["known_cost_sum"])
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -70,19 +86,19 @@ class ProductionJobTests(unittest.TestCase):
     def test_cli_reconcile_repeatable_ingest_reports(self):
         queue = build_jobs(self.project, self.root)
         paths = []
-        for job in queue['jobs']:
-            path = self.root / (job['shot_id'] + '.json')
-            path.write_text(json.dumps({'shot_id': job['shot_id'], **verified_receipt(job['fingerprint'])}))
-            paths.extend(['--receipt', str(path)])
-        project_path = self.root / 'project.json'
+        for job in queue["jobs"]:
+            path = self.root / (job["shot_id"] + ".json")
+            path.write_text(json.dumps({"shot_id": job["shot_id"], **verified_receipt(job["fingerprint"])}))
+            paths.extend(["--receipt", str(path)])
+        project_path = self.root / "project.json"
         project_path.write_text(json.dumps(self.project))
-        queue_path = self.root / 'queue.json'
+        queue_path = self.root / "queue.json"
         queue_path.write_text(json.dumps(queue))
-        argv = ['jobs', 'reconcile', '--project', str(project_path), '--root', str(self.root),
-                '--queue', str(queue_path), *paths]
-        with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(io.StringIO()) as output:
+        argv = ["jobs", "reconcile", "--project", str(project_path), "--root", str(self.root),
+                "--queue", str(queue_path), *paths]
+        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as output:
             self.assertEqual(main(), 0)
-        self.assertTrue(all(j['state'] == 'accepted' for j in json.loads(output.getvalue())['jobs']))
+        self.assertTrue(all(j["state"] == "accepted" for j in json.loads(output.getvalue())["jobs"]))
 
     def test_retry_requires_human_approval(self):
         queue = build_jobs(self.project, self.root)
