@@ -69,7 +69,8 @@ def reconcile(queue: dict, previous: dict | None = None,
             for key in ("state", "attempt", "media_receipt"):
                 job[key] = old.get(key, job[key])
         # Previous acceptance is not authoritative without the linked QA report.
-        if job["state"] == "accepted" and not _verified_receipt(job.get("media_receipt") or {}):
+        if job["state"] == "accepted" and (not _verified_receipt(job.get("media_receipt") or {})
+                or job["media_receipt"].get("fingerprint") != job["fingerprint"]):
             job["state"] = "pending-human-review"
         receipt = receipts.get(job["shot_id"])
         if receipt is not None:
@@ -83,6 +84,46 @@ def reconcile(queue: dict, previous: dict | None = None,
                                 else "pending-human-review")
         jobs.append(job)
     return {**queue, "jobs": jobs}
+
+
+def audit(queue: dict) -> dict:
+    """Summarize current shot evidence; never combine currencies or impute cost."""
+    shots = []
+    counts = {}
+    sums = {}
+    unknown = 0
+    accepted_seconds = 0
+    for job in queue['jobs']:
+        receipt = job.get('media_receipt') or {}
+        cost = receipt.get('cost')
+        counts[job['state']] = counts.get(job['state'], 0) + 1
+        if cost is None:
+            unknown += 1
+        else:
+            currency = cost['currency']
+            sums[currency] = sums.get(currency, 0) + cost['amount']
+        if job['state'] == 'accepted':
+            accepted_seconds += job['duration_s']
+        shots.append({
+            'shot_id': job['shot_id'], 'fingerprint': job['fingerprint'],
+            'state': job['state'], 'attempt': job['attempt'],
+            **{key: receipt.get(key) for key in
+               ('producer', 'model_version', 'media_sha256', 'reviewer', 'cost')},
+        })
+    currency = next(iter(sums)) if len(sums) == 1 else None
+    known_sum = sums[currency] if currency else None
+    return {
+        'schema_version': VERSION, 'project_id': queue['project_id'],
+        'shots': shots, 'is_final_video': False, 'published': False,
+        'every_shot_accepted': bool(shots) and all(s['state'] == 'accepted' for s in shots),
+        'totals': {'counts_by_state': counts, 'known_cost_sum': known_sum,
+                   'currency': currency, 'known_cost_by_currency': sums,
+                   'unknown_cost_count': unknown,
+                   'accepted_seconds': accepted_seconds,
+                   'cost_per_accepted_minute': (
+                       known_sum / (accepted_seconds / 60)
+                       if currency and not unknown and accepted_seconds > 0 else None)},
+    }
 
 
 def prepare_retry(queue: dict, shot_id: str, *, human_approved: bool = False) -> dict:
@@ -108,7 +149,7 @@ def main() -> int:
     parser.add_argument("--project", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--queue", type=Path)
-    parser.add_argument("--receipt", type=Path)
+    parser.add_argument("--receipt", type=Path, action="append", default=[])
     parser.add_argument("--shot-id")
     parser.add_argument("--human-approved", action="store_true")
     parser.add_argument("--output", type=Path)
@@ -120,14 +161,18 @@ def main() -> int:
         elif args.command == "ingest":
             if not args.receipt:
                 raise ValueError("--receipt required")
-            receipt = json.loads(args.receipt.read_text(encoding="utf-8"))
+            if len(args.receipt) != 1:
+                raise ValueError("ingest requires exactly one --receipt")
+            receipt = json.loads(args.receipt[0].read_text(encoding="utf-8"))
             result = ingest(project, receipt, args.root)
         else:
             if not args.queue:
                 raise ValueError("--queue required")
             queue = json.loads(args.queue.read_text(encoding="utf-8"))
             if args.command == "reconcile":
-                result = reconcile(build_jobs(project, args.root), queue)
+                reports = [json.loads(p.read_text(encoding="utf-8")) for p in args.receipt]
+                result = reconcile(build_jobs(project, args.root), queue,
+                                   {r['shot_id']: r for r in reports})
             else:
                 if not args.shot_id:
                     raise ValueError("--shot-id required")

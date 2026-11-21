@@ -1,12 +1,16 @@
 """SYNTHETIC offline production job lifecycle tests."""
 import copy
+import contextlib
+import io
+import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from contf.production_jobs import build_jobs, reconcile, prepare_retry
+from contf.production_jobs import audit, build_jobs, reconcile, prepare_retry, main
 from contf.production_adapter import REQUIRED_REVIEW
 
 
@@ -30,6 +34,27 @@ def verified_receipt(fingerprint):
 
 
 class ProductionJobTests(unittest.TestCase):
+    def test_audit_empty_and_unknown(self):
+        empty = audit({'project_id': 'SYNTHETIC', 'jobs': []})
+        self.assertFalse(empty['every_shot_accepted'])
+        self.assertIsNone(empty['totals']['cost_per_accepted_minute'])
+        result = audit(build_jobs(project(), Path('.')))
+        self.assertEqual(result['totals']['unknown_cost_count'], 2)
+        self.assertIsNone(result['totals']['known_cost_sum'])
+        self.assertIsNone(result['shots'][0]['cost'])
+
+    def test_audit_known_and_mixed_currency(self):
+        queue = build_jobs(project(), Path('.'))
+        for job in queue['jobs']:
+            job['state'] = 'accepted'
+            job['media_receipt'] = {'cost': {'amount': 2, 'currency': 'USD', 'source': 'SYNTHETIC'}}
+        result = audit(queue)
+        self.assertTrue(result['every_shot_accepted'])
+        self.assertEqual(result['totals']['known_cost_sum'], 4)
+        self.assertEqual(result['totals']['cost_per_accepted_minute'], 12)
+        queue['jobs'][0]['media_receipt']['cost']['currency'] = 'EUR'
+        self.assertIsNone(audit(queue)['totals']['known_cost_sum'])
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -41,6 +66,23 @@ class ProductionJobTests(unittest.TestCase):
         self.assertEqual(a, build_jobs(self.project, self.root))
         self.assertFalse(a["automatic_provider_execution"])
         self.assertTrue(all(j["state"] == "awaiting-human-approval" for j in a["jobs"]))
+
+    def test_cli_reconcile_repeatable_ingest_reports(self):
+        queue = build_jobs(self.project, self.root)
+        paths = []
+        for job in queue['jobs']:
+            path = self.root / (job['shot_id'] + '.json')
+            path.write_text(json.dumps({'shot_id': job['shot_id'], **verified_receipt(job['fingerprint'])}))
+            paths.extend(['--receipt', str(path)])
+        project_path = self.root / 'project.json'
+        project_path.write_text(json.dumps(self.project))
+        queue_path = self.root / 'queue.json'
+        queue_path.write_text(json.dumps(queue))
+        argv = ['jobs', 'reconcile', '--project', str(project_path), '--root', str(self.root),
+                '--queue', str(queue_path), *paths]
+        with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(main(), 0)
+        self.assertTrue(all(j['state'] == 'accepted' for j in json.loads(output.getvalue())['jobs']))
 
     def test_retry_requires_human_approval(self):
         queue = build_jobs(self.project, self.root)

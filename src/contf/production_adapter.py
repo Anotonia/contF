@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 
 from contf.production_qa import inspect
+from contf.shot_pipeline import compile_plan
 
 RECEIPT_VERSION = "0.1.0"
 REQUIRED_REVIEW = (
@@ -39,9 +40,28 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def ingest(project: dict, receipt: dict, root: Path) -> dict:
+def ingest(project: dict, receipt: dict, root: Path, *, width: int = 640,
+           height: int = 360, fps: int = 12) -> dict:
     """Produce an auditable shot candidate; never silently mark accepted."""
+    if not isinstance(receipt, dict):
+        raise ValueError('receipt must be an object')
     errors = []
+    plan = compile_plan(project, root, width=width, height=height, fps=fps)
+    expected_key = next((s['cache_key'] for s in plan['shots']
+                         if s['shot_id'] == receipt.get('shot_id')), None)
+    if not receipt.get('fingerprint') or receipt.get('fingerprint') != expected_key:
+        errors.append('fingerprint missing or does not match current shot plan')
+    cost = receipt.get('cost')
+    if cost is not None:
+        if (not isinstance(cost, dict)
+                or isinstance(cost.get('amount'), bool)
+                or not isinstance(cost.get('amount'), (int, float))
+                or not math.isfinite(cost['amount']) or cost['amount'] < 0
+                or not isinstance(cost.get('currency'), str)
+                or len(cost['currency']) != 3 or not cost['currency'].isupper()
+                or not isinstance(cost.get('source'), str) or not cost['source'].strip()):
+            errors.append('cost must contain nonnegative finite amount, currency and source')
+            cost = None
     shots = project.get("shots", [])
     if project.get("rights") != "owned-original":
         errors.append("project rights not approved for this pilot")
@@ -85,13 +105,16 @@ def ingest(project: dict, receipt: dict, root: Path) -> dict:
         errors.append("reviewer must be a string")
     manual_pass = all(manual.get(gate) == "pass" for gate in REQUIRED_REVIEW)
     # A reviewer must be explicitly named before an accepted status is possible.
-    accepted = not errors and manual_pass and bool(receipt.get("reviewer"))
+    accepted = not errors and manual_pass and bool((receipt.get("reviewer") or '').strip())
     return {
         "receipt_version": RECEIPT_VERSION,
         "shot_id": shot_id,
+        "fingerprint": receipt.get("fingerprint"),
+        "cost": cost,
         "producer": receipt.get("producer"),
         "model_version": receipt.get("model_version"),
         "media_path": receipt.get("media_path"),
+        "source_rights": receipt.get("source_rights"),
         "media_sha256": _sha256(media) if media else None,
         "preflight": preflight,
         "manual_review": {gate: manual.get(gate, "pending") for gate in REQUIRED_REVIEW},

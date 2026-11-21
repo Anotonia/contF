@@ -7,6 +7,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from contf.production_adapter import REQUIRED_REVIEW, ingest
+from contf.production_jobs import build_jobs
+from test_production_jobs import project
 
 
 class ProductionAdapterTests(unittest.TestCase):
@@ -15,14 +17,29 @@ class ProductionAdapterTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         (self.root / "shot.mp4").write_bytes(b"SYNTHETIC MEDIA")
-        self.project = {"rights": "owned-original", "shots": [
-            {"shot_id": "S01", "duration_s": 20}]}
+        self.project = project()
+        self.project['shots'][0]['duration_s'] = 20
         self.receipt = {"receipt_version": "0.1.0", "shot_id": "S01",
                         "source_rights": "owned", "producer": "local-fixture",
                         "model_version": "synthetic-1", "media_path": "shot.mp4",
                         "paid_generation": False,
                         "manual_review": {k: "pending" for k in REQUIRED_REVIEW}}
         self.ok = {"passed": True, "errors": [], "duration_s": 20}
+        self.receipt['fingerprint'] = build_jobs(self.project, self.root)['jobs'][0]['fingerprint']
+
+    def test_fingerprint_required_and_current(self):
+        for fingerprint in (None, 'stale'):
+            self.receipt['fingerprint'] = fingerprint
+            with patch('contf.production_adapter.inspect', return_value=self.ok):
+                report = ingest(self.project, self.receipt, self.root)
+            self.assertFalse(report['accepted'])
+            self.assertIn('fingerprint missing or does not match current shot plan', report['errors'])
+
+    def test_cost_missing_is_null_and_invalid_cost_blocks(self):
+        with patch('contf.production_adapter.inspect', return_value=self.ok):
+            self.assertIsNone(ingest(self.project, self.receipt, self.root)['cost'])
+            self.receipt['cost'] = {'amount': -1, 'currency': 'USD', 'source': 'SYNTHETIC'}
+            self.assertTrue(ingest(self.project, self.receipt, self.root)['errors'])
 
     def test_pending_not_auto_accepted(self):
         with patch("contf.production_adapter.inspect", return_value=self.ok):
