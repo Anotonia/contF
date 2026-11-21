@@ -111,6 +111,7 @@
     'media-io': 'https://www.media.io/video-watermark-remover.html'
   };
   let file = null, objectUrl = null, drawing = false, origin = null, draft = null;
+  let timesInitialized = false;
   const regions = [];
   const round = n => Number(n.toFixed(3));
   const ready = () => file && !video.error && video.readyState >= video.HAVE_METADATA &&
@@ -180,6 +181,7 @@
     }
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     file = $('file').files[0] || null;
+    timesInitialized = false;
     regions.length = 0; renderRegions(); setDrawing(false);
     objectUrl = file ? URL.createObjectURL(file) : null;
     if (objectUrl) video.src = objectUrl;
@@ -188,12 +190,20 @@
     $('empty').hidden = Boolean(file);
     tell(file ? `已在本地加载 ${file.name}；等待元数据。` : '');
   });
-  video.addEventListener('loadedmetadata', () => {
-    if (!ready()) { tell('无法读取有效的视频时长或画面尺寸。'); return; }
-    $('start').value = 0; $('end').value = video.duration;
+  function syncMetadata() {
     updateHandoff();
-    resize(); tell(`本地载入完成 · ${round(video.duration)} 秒 · 未上传`);
-  });
+    resize();
+    if (!ready()) {
+      if (file && video.readyState >= video.HAVE_METADATA && !video.error) tell('尚未读取有效的视频时长或画面尺寸，可尝试播放视频。');
+      return;
+    }
+    if (timesInitialized) return;
+    timesInitialized = true;
+    $('start').value = 0; $('end').value = video.duration;
+    tell(`本地载入完成 · ${round(video.duration)} 秒 · 未上传`);
+  }
+  video.addEventListener('loadedmetadata', syncMetadata);
+  video.addEventListener('durationchange', syncMetadata);
   video.addEventListener('error', () => { setDrawing(false); resize(); updateHandoff(); tell('无法载入此视频，请尝试其他格式。'); });
   $('drawBtn').addEventListener('click', () => {
     if (!ready()) { tell('请先选择并载入视频。'); return; }
