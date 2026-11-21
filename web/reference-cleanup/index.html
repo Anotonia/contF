@@ -62,15 +62,15 @@
     <section class="panel">
       <h2>01 / 原始素材与区域标注</h2>
       <label>选择本地视频（不会上传到 contF）<input id="file" type="file" accept="video/*"></label>
-      <div class="toolbar"><button id="drawBtn" class="ghost" type="button">绘制水印区域</button><span class="tip">播放或暂停后绘制；可分别标注不同时间段</span></div>
+      <div class="toolbar"><button id="drawBtn" class="ghost" type="button">绘制水印区域</button><span class="tip">先设置下方时间，再拖动绘制矩形</span></div>
       <div class="stage" id="stage">
         <video id="preview" controls playsinline preload="metadata"></video>
         <canvas id="mask" aria-label="Draw watermark regions"></canvas>
         <div class="empty" id="empty">导入拥有或获准编辑的视频，开始标注</div>
       </div>
       <div class="cols" style="margin-top:12px">
-        <label>区域开始时间（秒）<input id="start" type="number" min="0" step="any" value="0"></label>
-        <label>区域结束时间（秒）<input id="end" type="number" min="0" step="any" value="0"></label>
+        <label>下个区域的开始时间（秒）<input id="start" type="number" min="0" step="any" value="0"></label>
+        <label>下个区域的结束时间（秒）<input id="end" type="number" min="0" step="any" value="0"></label>
       </div>
       <p class="tip" style="margin-top:10px">矩形使用 0–100% 相对坐标；水印移动时，请分段添加新区域。此页只制作标注清单，不改动视频像素。</p>
       <ul id="regions" class="regions"><li class="muted">尚未添加区域</li></ul>
@@ -115,7 +115,8 @@
   const round = n => Number(n.toFixed(3));
   const ready = () => file && !video.error && video.readyState >= video.HAVE_METADATA &&
     video.videoWidth > 0 && video.videoHeight > 0 && Number.isFinite(video.duration) && video.duration > 0;
-  const authorized = () => $('rights').value !== 'unknown' && $('attest').checked;
+  const authorized = () => ready() && $('rights').value !== 'unknown' && $('attest').checked;
+  const updateHandoff = () => { $('openTool').disabled = !authorized(); };
   const tell = value => { $('status').textContent = value; };
 
   function resize() {
@@ -172,21 +173,28 @@
     });
   }
   $('file').addEventListener('change', () => {
+    if (file) {
+      for (const id of ['refId', 'sourceUrl', 'evidence']) $(id).value = '';
+      $('rights').value = 'unknown';
+      $('attest').checked = false;
+    }
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     file = $('file').files[0] || null;
     regions.length = 0; renderRegions(); setDrawing(false);
     objectUrl = file ? URL.createObjectURL(file) : null;
     if (objectUrl) video.src = objectUrl;
     else { video.removeAttribute('src'); video.load(); }
+    updateHandoff();
     $('empty').hidden = Boolean(file);
     tell(file ? `已在本地加载 ${file.name}；等待元数据。` : '');
   });
   video.addEventListener('loadedmetadata', () => {
     if (!ready()) { tell('无法读取有效的视频时长或画面尺寸。'); return; }
     $('start').value = 0; $('end').value = video.duration;
+    updateHandoff();
     resize(); tell(`本地载入完成 · ${round(video.duration)} 秒 · 未上传`);
   });
-  video.addEventListener('error', () => { setDrawing(false); resize(); tell('无法载入此视频，请尝试其他格式。'); });
+  video.addEventListener('error', () => { setDrawing(false); resize(); updateHandoff(); tell('无法载入此视频，请尝试其他格式。'); });
   $('drawBtn').addEventListener('click', () => {
     if (!ready()) { tell('请先选择并载入视频。'); return; }
     setDrawing(!drawing);
@@ -206,7 +214,7 @@
     renderRegions(); paint(); tell(`已记录 ${regions.length} 个区域。`);
   });
   canvas.addEventListener('pointercancel', () => { origin = null; draft = null; paint(); });
-  for (const id of ['rights', 'attest']) $(id).addEventListener('change', () => { $('openTool').disabled = !authorized(); });
+  for (const id of ['rights', 'attest']) $(id).addEventListener('change', updateHandoff);
   $('openTool').addEventListener('click', () => {
     if (!authorized()) { tell('仅有已授权素材可进入去水印处理。'); return; }
     window.open(urls[$('processor').value], '_blank', 'noopener,noreferrer');

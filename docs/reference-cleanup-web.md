@@ -17,8 +17,8 @@ No application account, dependency installation or service API is needed. The se
 
 ## Workflow / handoff
 
-1. Select a locally held, rights-cleared source. Enter a stable `reference_id`, original URL if applicable, permission/evidence and duration from video metadata.
-2. Pause on the relevant frame; enable draw mode and drag a bounding rectangle. Choose start/end seconds for its visibility. Repeat per moving-region interval. Multiple rectangles use normalized **percent coordinates** rather than baked-in pixels.
+1. Select a locally held, rights-cleared source. Enter a stable `reference_id`, original URL if applicable, and permission/evidence. The page reads the duration from video metadata. Replacing a video clears its source details and rights attestation.
+2. Pause on the relevant frame and enter the next region's start/end seconds. Enable draw mode and drag a bounding rectangle to save it with that interval. Changes to the time fields only affect the next rectangle; to correct an interval, delete the region and redraw it. Repeat per moving-region interval. Rectangles use normalized **percent coordinates** rather than baked-in pixels.
 3. Optionally open WatermarkOut (client-side first), VidProc (time-bound regions) or Media.io (longer supported inputs). No automatic upload, charge, provider call or processed-output claim occurs. Inspect the external tool's current terms; use only material you can edit.
 4. Export `*-cleanup-manifest.json`. This is a **preflight**, with `processor.execution_status = "not-run"`, `output_file_name = null` and `human_review.status = "pending"` regardless of whether an external page was opened.
 5. After separate manual processing, human QA must compare the original with cleaned frames at cut boundaries, moving text/objects and faces; record actual tool/version, runtime, output checksum or private media pointer, failed intervals and permission. A future version may add a reviewed execution manifest. **Do not fabricate completed status.**
