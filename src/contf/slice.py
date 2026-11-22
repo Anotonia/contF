@@ -21,8 +21,9 @@ def run_slice(project: dict, root: Path, out: Path, *, receipts: list[Path] = ()
     if previous and previous.get("project_id") != project["project_id"]:
         previous = None
     revalidation_errors = {}
+    current_fingerprints = {job["fingerprint"] for job in planned["jobs"]}
     for job in (previous or {}).get("jobs", []):
-        if job["state"] == "accepted":
+        if job["state"] == "accepted" and job["fingerprint"] in current_fingerprints:
             old = job.get("media_receipt") or {}
             checked = ingest(project, receipt_from_report(old), root, approval=old.get("approval"), **settings)
             if not checked["accepted"] or checked["media_sha256"] != old.get("media_sha256"):

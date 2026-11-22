@@ -21,6 +21,34 @@ from test_production_jobs import approval_record, project
 
 
 class SliceTests(unittest.TestCase):
+    def test_obsolete_accepted_receipts_do_not_report_revalidation_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            spec = project()
+            (root / "SYNTHETIC.mp4").write_bytes(b"SYNTHETIC media")
+            raw = {"receipt_version": "0.2.0", "shot_id": "S01",
+                   "fingerprint": build_jobs(spec, root)["jobs"][0]["fingerprint"],
+                   "producer": "SYNTHETIC producer", "model_version": "SYNTHETIC-1",
+                   "source_rights": "owned", "media_path": "SYNTHETIC.mp4"}
+            receipt_path = root / "receipt.json"
+            receipt_path.write_text(json.dumps(raw))
+            approval_path = root / "approval.json"
+            approval_path.write_text(json.dumps(approval_record(raw, hashlib.sha256(b"SYNTHETIC media").hexdigest())))
+            for change in ("caption", "remove"):
+                with self.subTest(change=change), patch("contf.production_adapter.inspect", return_value={"passed": True, "errors": []}):
+                    out = root / change
+                    accepted = run_slice(spec, root, out, receipts=[receipt_path], approvals=[approval_path], no_render=True)
+                    self.assertEqual(accepted["audit"]["shots"][0]["state"], "accepted")
+                    changed = copy.deepcopy(spec)
+                    if change == "caption":
+                        changed["shots"][0]["dialogue"] = "SYNTHETIC edited caption"
+                    else:
+                        changed["shots"].pop(0)
+                    result = run_slice(changed, root, out, no_render=True)
+                    self.assertEqual(result["errors"], [])
+                    self.assertTrue(all(shot["state"] != "accepted" for shot in result["audit"]["shots"]))
+                    self.assertTrue(all(job["media_receipt"] is None for job in json.loads((out / "queue.json").read_text())["jobs"]))
+
     def test_approval_only_cannot_normalize_blocked_producer_receipts(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
