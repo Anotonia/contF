@@ -149,6 +149,37 @@ class ProductionJobTests(unittest.TestCase):
         result = reconcile(queue, receipts={"S01": foreign["jobs"][0]["media_receipt"]})
         self.assertEqual(result["jobs"][0]["state"], "blocked-stale-receipt")
 
+    def test_cli_reconcile_ignores_foreign_queue_settings(self):
+        foreign_project = copy.deepcopy(self.project)
+        foreign_project["project_id"] = "SYNTHETIC-foreign-project"
+        foreign = build_jobs(foreign_project, self.root, width=320, height=180, fps=8)
+        foreign["jobs"][1].update(state="accepted", media_receipt=verified_receipt(foreign["jobs"][1]["fingerprint"]))
+        project_file = self.root / "project.json"
+        queue_file = self.root / "foreign-queue.json"
+        receipt_file = self.root / "receipt.json"
+        project_file.write_text(json.dumps(self.project))
+        queue_file.write_text(json.dumps(foreign))
+        for settings, flags in (({}, []), ({"width": 480, "height": 270, "fps": 10},
+                                         ["--width", "480", "--height", "270", "--fps", "10"])):
+            current = build_jobs(self.project, self.root, **settings)
+            receipt = {"shot_id": "S01", **verified_receipt(current["jobs"][0]["fingerprint"])}
+            receipt_file.write_text(json.dumps(receipt))
+            argv = ["jobs", "reconcile", "--project", str(project_file), "--root", str(self.root),
+                    "--queue", str(queue_file), "--receipt", str(receipt_file), *flags]
+            with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(main(), 0)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["plan_settings"], current["plan_settings"])
+            self.assertEqual(result["jobs"][0]["state"], "accepted")
+            self.assertEqual(result["jobs"][1]["state"], "awaiting-human-approval")
+            self.assertEqual(result["rejected_receipts"], [])
+        retry = ["jobs", "retry", "--project", str(project_file), "--root", str(self.root),
+                 "--queue", str(queue_file), "--shot-id", "S02", "--human-approved"]
+        with patch.object(sys, "argv", retry), contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(main(), 2)
+        self.assertIn("retry requires a queue for the current project", output.getvalue())
+        self.assertEqual(json.loads(queue_file.read_text()), foreign)
+
     def test_stale_incoming_receipt_preserves_current_verified_acceptance(self):
         queue = build_jobs(self.project, self.root)
         previous = copy.deepcopy(queue)
