@@ -21,6 +21,40 @@ from test_production_jobs import approval_record, project
 
 
 class SliceTests(unittest.TestCase):
+    def test_approval_only_cannot_normalize_blocked_producer_receipts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            spec = project()
+            (root / "SYNTHETIC.mp4").write_bytes(b"SYNTHETIC media")
+            raw = {"receipt_version": "0.2.0", "shot_id": "S01",
+                   "fingerprint": build_jobs(spec, root)["jobs"][0]["fingerprint"],
+                   "producer": "SYNTHETIC producer", "model_version": "SYNTHETIC-1",
+                   "source_rights": "owned", "media_path": "SYNTHETIC.mp4"}
+            receipt_path = root / "receipt.json"
+            approval_path = root / "approval.json"
+            approval_path.write_text(json.dumps(approval_record(raw, hashlib.sha256(b"SYNTHETIC media").hexdigest())))
+            invalid_fields = (
+                {"reviewer": "SYNTHETIC reviewer", "manual_review": {gate: "pass" for gate in REQUIRED_REVIEW}},
+                {"receipt_version": "0.1.0"},
+                {"cost": {"amount": -1, "currency": "USD", "source": "SYNTHETIC billing"}},
+            )
+            with patch("contf.production_adapter.inspect", return_value={"passed": True, "errors": []}):
+                for index, fields in enumerate(invalid_fields):
+                    with self.subTest(fields=fields):
+                        out = root / str(index)
+                        receipt_path.write_text(json.dumps({**raw, **fields}))
+                        blocked = run_slice(spec, root, out, receipts=[receipt_path], no_render=True)
+                        self.assertTrue(blocked["errors"])
+                        self.assertEqual(blocked["audit"]["shots"][0]["state"], "blocked")
+                        previous = (out / "queue.json").read_bytes()
+                        with self.assertRaisesRegex(ValueError, "corrected producer receipt"):
+                            run_slice(spec, root, out, approvals=[approval_path], no_render=True)
+                        self.assertEqual((out / "queue.json").read_bytes(), previous)
+                        receipt_path.write_text(json.dumps(raw))
+                        corrected = run_slice(spec, root, out, receipts=[receipt_path], approvals=[approval_path], no_render=True)
+                        self.assertEqual(corrected["errors"], [])
+                        self.assertEqual(corrected["audit"]["shots"][0]["state"], "accepted")
+
     def test_approval_files_require_receipts_and_reject_duplicates(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

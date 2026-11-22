@@ -50,6 +50,8 @@ def run_slice(project: dict, root: Path, out: Path, *, receipts: list[Path] = ()
         if shot_id not in raw_receipts:
             if shot_id not in ids or not queued.get(shot_id):
                 raise ValueError("approval has no supplied or queued receipt")
+            if queued[shot_id].get("errors") != [] or queued[shot_id].get("status") not in ("pending-human-review", "accepted"):
+                raise ValueError("approval requires a corrected producer receipt for a blocked or invalid queued report")
             raw_receipts[shot_id] = receipt_from_report(queued[shot_id])
     for shot_id, raw in raw_receipts.items():
         report = ingest(project, raw, root, approval=approval_records.get(shot_id), **settings)
