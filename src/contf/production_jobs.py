@@ -113,7 +113,7 @@ def audit(queue: dict) -> dict:
         else:
             currency = cost["currency"]
             sums[currency] = sums.get(currency, 0) + cost["amount"]
-        if job["state"] == "accepted":
+        if job["state"] == "accepted" and _verified_receipt(receipt) and receipt.get("fingerprint") == job["fingerprint"]:
             accepted_seconds += job["duration_s"]
         shots.append({
             "shot_id": job["shot_id"], "fingerprint": job["fingerprint"],
@@ -126,7 +126,7 @@ def audit(queue: dict) -> dict:
     return {
         "schema_version": VERSION, "project_id": queue["project_id"],
         "shots": shots, "is_final_video": False, "published": False,
-        "every_shot_accepted": bool(shots) and all(s["state"] == "accepted" for s in shots),
+        "every_shot_accepted": bool(shots) and all(\n            j["state"] == "accepted" and _verified_receipt(j.get("media_receipt") or {})\n            and (j.get("media_receipt") or {}).get("fingerprint") == j["fingerprint"]\n            for j in queue["jobs"]),
         "totals": {"counts_by_state": counts, "known_cost_sum": known_sum,
                    "currency": currency, "known_cost_by_currency": sums,
                    "unknown_cost_count": unknown,
