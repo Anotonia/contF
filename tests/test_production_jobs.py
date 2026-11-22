@@ -35,6 +35,26 @@ def verified_receipt(fingerprint):
 
 
 class ProductionJobTests(unittest.TestCase):
+    def test_audit_rejects_forged_acceptance_from_metrics(self):
+        queue = build_jobs(project(), Path("."))
+        job = queue["jobs"][0]
+        job["state"] = "accepted"
+        job["media_receipt"] = {"accepted": True, "cost": {
+            "amount": 9, "currency": "EUR", "source": "SYNTHETIC"}}
+        report = audit(queue)
+        self.assertFalse(report["every_shot_accepted"])
+        self.assertEqual(report["totals"]["accepted_seconds"], 0)
+        self.assertIsNone(report["totals"]["cost_per_accepted_minute"])
+
+    def test_audit_rejects_foreign_fingerprint(self):
+        queue = build_jobs(project(), Path("."))
+        for job in queue["jobs"]:
+            job["state"] = "accepted"
+            job["media_receipt"] = verified_receipt("SYNTHETIC-wrong")
+        report = audit(queue)
+        self.assertFalse(report["every_shot_accepted"])
+        self.assertEqual(report["totals"]["accepted_seconds"], 0)
+
     def test_audit_empty_and_unknown(self):
         empty = audit({"project_id": "SYNTHETIC", "jobs": []})
         self.assertFalse(empty["every_shot_accepted"])
@@ -49,7 +69,7 @@ class ProductionJobTests(unittest.TestCase):
         queue = build_jobs(project(), Path("."))
         job = queue["jobs"][0]
         job["state"] = "accepted"
-        job["media_receipt"] = {"cost": {"amount": 3, "currency": "USD", "source": "SYNTHETIC"}}
+        job["media_receipt"] = {**verified_receipt(job["fingerprint"]),\n                                "cost": {"amount": 3, "currency": "USD", "source": "SYNTHETIC"}}
         totals = audit(queue)["totals"]
         self.assertEqual(totals["unknown_cost_count"], 0)
         self.assertEqual(totals["not_produced_count"], 1)
@@ -64,7 +84,7 @@ class ProductionJobTests(unittest.TestCase):
         queue = build_jobs(project(), Path("."))
         for job in queue["jobs"]:
             job["state"] = "accepted"
-            job["media_receipt"] = {"cost": {"amount": 2, "currency": "USD", "source": "SYNTHETIC"}}
+            job["media_receipt"] = {**verified_receipt(job["fingerprint"]),\n                                    "cost": {"amount": 2, "currency": "USD", "source": "SYNTHETIC"}}
         result = audit(queue)
         self.assertTrue(result["every_shot_accepted"])
         self.assertEqual(result["totals"]["known_cost_sum"], 4)
