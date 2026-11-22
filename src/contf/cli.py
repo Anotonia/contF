@@ -31,6 +31,7 @@ def main() -> int:
     slice_cmd.add_argument("--root", type=Path, default=Path("."))
     slice_cmd.add_argument("--out", type=Path, required=True)
     slice_cmd.add_argument("--receipt", type=Path, action="append", default=[])
+    slice_cmd.add_argument("--approval", type=Path, action="append", default=[])
     slice_cmd.add_argument("--no-render", action="store_true")
     slice_cmd.add_argument("--width", type=int, default=640)
     slice_cmd.add_argument("--height", type=int, default=360)
@@ -40,7 +41,7 @@ def main() -> int:
         from .slice import run_slice
         try:
             result = run_slice(json.loads(args.project.read_text(encoding="utf-8")),
-                               args.root, args.out, receipts=args.receipt,
+                               args.root, args.out, receipts=args.receipt, approvals=args.approval,
                                no_render=args.no_render, width=args.width,
                                height=args.height, fps=args.fps)
         except (ValueError, OSError, RuntimeError, KeyError, TypeError) as exc:

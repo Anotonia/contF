@@ -1,6 +1,7 @@
 """SYNTHETIC offline production job lifecycle tests."""
 import copy
 import contextlib
+import hashlib
 import io
 import json
 import sys
@@ -27,11 +28,22 @@ def project():
             ]}
 
 
-def verified_receipt(fingerprint):
-    return {"fingerprint": fingerprint, "accepted": True, "status": "accepted",
+def approval_record(receipt, media_sha256):
+    return {"approval_version": "0.1.0", "shot_id": receipt["shot_id"],
+            "fingerprint": receipt["fingerprint"], "media_sha256": media_sha256,
+            "reviewer": "SYNTHETIC independent reviewer",
+            "manual_review": {key: "pass" for key in REQUIRED_REVIEW}}
+
+
+def verified_receipt(fingerprint, shot_id="S01"):
+    report = {"receipt_version": "0.2.0", "shot_id": shot_id, "producer": "SYNTHETIC producer",
+            "fingerprint": fingerprint, "accepted": True, "status": "accepted",
             "errors": [], "media_sha256": "a" * 64, "reviewer": "human-reviewer",
             "preflight": {"passed": True},
             "manual_review": {key: "pass" for key in REQUIRED_REVIEW}}
+    report["approval"] = approval_record(report, report["media_sha256"])
+    report["reviewer"] = report["approval"]["reviewer"]
+    return report
 
 
 class ProductionJobTests(unittest.TestCase):
@@ -100,23 +112,25 @@ class ProductionJobTests(unittest.TestCase):
         queue_file.write_text(json.dumps(queue))
         (self.root / "S02.mp4").write_bytes(b"SYNTHETIC media")
         receipt = {
-            "receipt_version": "0.1.0", "shot_id": "S02", "source_rights": "owned",
+            "receipt_version": "0.2.0", "shot_id": "S02", "source_rights": "owned",
             "producer": "SYNTHETIC", "model_version": "SYNTHETIC-1", "media_path": "S02.mp4",
-            "reviewer": "SYNTHETIC reviewer", "manual_review": {k: "pass" for k in REQUIRED_REVIEW},
         }
+        approval_file = self.root / "approval.json"
         args = ["--project", str(project_file), "--root", str(self.root), "--queue", str(queue_file)]
         with patch("contf.production_adapter.inspect", return_value={"passed": True, "errors": []}):
             for supplied in (False, True):
                 if supplied:
                     receipt["fingerprint"] = queue["jobs"][1]["fingerprint"]
                 receipt_file.write_text(json.dumps(receipt))
-                argv = ["jobs", "apply", *args, "--receipt", str(receipt_file)]
+                approved_receipt = {**receipt, "fingerprint": queue["jobs"][1]["fingerprint"]}
+                approval_file.write_text(json.dumps(approval_record(approved_receipt, hashlib.sha256(b"SYNTHETIC media").hexdigest())))
+                argv = ["jobs", "apply", *args, "--receipt", str(receipt_file), "--approval", str(approval_file)]
                 with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as output:
                     self.assertEqual(main(), 0)
                 applied = json.loads(output.getvalue())
                 self.assertTrue(all(j["state"] == "accepted" for j in applied["jobs"]))
                 self.assertEqual(applied["plan_settings"], queue["plan_settings"])
-            with patch.object(sys, "argv", ["jobs", "ingest", *args, "--receipt", str(receipt_file)]):
+            with patch.object(sys, "argv", ["jobs", "ingest", *args, "--receipt", str(receipt_file), "--approval", str(approval_file)]):
                 with contextlib.redirect_stdout(io.StringIO()) as output:
                     self.assertEqual(main(), 0)
             report = json.loads(output.getvalue())
@@ -199,7 +213,7 @@ class ProductionJobTests(unittest.TestCase):
         paths = []
         for job in queue["jobs"]:
             path = self.root / (job["shot_id"] + ".json")
-            path.write_text(json.dumps({"shot_id": job["shot_id"], **verified_receipt(job["fingerprint"])}))
+            path.write_text(json.dumps(verified_receipt(job["fingerprint"], job["shot_id"])))
             paths.extend(["--receipt", str(path)])
         project_path = self.root / "project.json"
         project_path.write_text(json.dumps(self.project))
@@ -250,6 +264,28 @@ class ProductionJobTests(unittest.TestCase):
         updated = reconcile(queue, receipts={"S01": receipt})
         self.assertEqual(updated["jobs"][0]["state"], "accepted")
 
+    def test_embedded_approval_is_required_and_bound_to_report(self):
+        queue = build_jobs(self.project, self.root)
+        valid = verified_receipt(queue["jobs"][0]["fingerprint"])
+        invalid = []
+        missing = copy.deepcopy(valid)
+        del missing["approval"]
+        invalid.append(missing)
+        for key, value in (("media_sha256", "b" * 64), ("fingerprint", "SYNTHETIC-stale"),
+                           ("shot_id", "S02"), ("approval_version", "0.0.0"),
+                           ("reviewer", "SYNTHETIC producer"), ("reviewer", "SYNTHETIC other reviewer"),
+                           ("manual_review", {gate: "pending" for gate in REQUIRED_REVIEW})):
+            receipt = copy.deepcopy(valid)
+            receipt["approval"][key] = value
+            invalid.append(receipt)
+        for receipt in invalid:
+            with self.subTest(receipt=receipt):
+                updated = reconcile(queue, receipts={"S01": receipt})
+                self.assertNotEqual(updated["jobs"][0]["state"], "accepted")
+                previous = copy.deepcopy(queue)
+                previous["jobs"][0].update(state="accepted", media_receipt=receipt)
+                self.assertNotEqual(reconcile(queue, previous)["jobs"][0]["state"], "accepted")
+
     def test_restored_acceptance_without_qa_is_downgraded(self):
         queue = build_jobs(self.project, self.root)
         queue["jobs"][0]["state"] = "accepted"
@@ -269,11 +305,10 @@ class ProductionJobTests(unittest.TestCase):
         queue["jobs"][0]["media_receipt"] = verified_receipt(queue["jobs"][0]["fingerprint"])
         queue_file.write_text(json.dumps(queue), encoding="utf-8")
         receipt = {
-            "receipt_version": "0.1.0", "shot_id": "S02",
+            "receipt_version": "0.2.0", "shot_id": "S02",
             "source_rights": "owned", "producer": "SYNTHETIC-local",
             "model_version": "fixture-1", "media_path": "S02.mp4",
             "paid_generation": False,
-            "manual_review": {key: "pending" for key in REQUIRED_REVIEW},
         }
         receipt_file.write_text(json.dumps(receipt), encoding="utf-8")
         argv = ["production_jobs", "apply", "--project", str(project_file),
@@ -304,11 +339,10 @@ class ProductionJobTests(unittest.TestCase):
         project_file.write_text(json.dumps(self.project), encoding="utf-8")
         queue_file.write_text(json.dumps(build_jobs(self.project, self.root)), encoding="utf-8")
         receipt = {
-            "receipt_version": "0.1.0", "shot_id": "S01", "fingerprint": "stale",
+            "receipt_version": "0.2.0", "shot_id": "S01", "fingerprint": "stale",
             "source_rights": "owned", "producer": "SYNTHETIC-local",
             "model_version": "fixture-1", "media_path": "S01.mp4",
-            "reviewer": "SYNTHETIC reviewer", "accepted": True,
-            "manual_review": {key: "pass" for key in REQUIRED_REVIEW},
+            "accepted": True,
         }
         receipt_file.write_text(json.dumps(receipt), encoding="utf-8")
         argv = ["production_jobs", "apply", "--project", str(project_file),
@@ -317,7 +351,7 @@ class ProductionJobTests(unittest.TestCase):
         with patch("contf.production_adapter.inspect",
                    return_value={"passed": True, "errors": [], "duration_s": 10}):
             with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as output:
-                self.assertEqual(main(), 0)
+                self.assertEqual(main(), 2)
         result = json.loads(output.getvalue())
         self.assertEqual(result["jobs"][0]["state"], "blocked-stale-receipt")
         self.assertIsNone(result["jobs"][0]["media_receipt"])
@@ -332,6 +366,16 @@ class ProductionJobTests(unittest.TestCase):
             with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as output:
                 self.assertEqual(main(), 2)
             self.assertIn("requires exactly one --receipt", output.getvalue())
+
+    def test_apply_and_ingest_reject_duplicate_approvals(self):
+        project_file = self.root / "SYNTHETIC-project.json"
+        project_file.write_text(json.dumps(self.project))
+        for command in ("apply", "ingest"):
+            argv = ["jobs", command, "--project", str(project_file), "--root", str(self.root),
+                    "--approval", "SYNTHETIC-one.json", "--approval", "SYNTHETIC-two.json"]
+            with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(main(), 2)
+            self.assertIn("at most one approval", output.getvalue())
 
 
 if __name__ == "__main__":

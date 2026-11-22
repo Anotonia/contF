@@ -61,13 +61,17 @@ cat "$SAMPLE_ROOT/out/audit.json"
 ```
 
 The script copies the 16-shot sample into the temporary root, generates an owned
-SYNTHETIC 12-second 640×360 testsrc+sine clip, and writes a receipt for S01 with
-the job fingerprint, named SYNTHETIC reviewer, all manual gates passing and a
-fictional billing fixture (not real model pricing or actual spending). It runs:
+SYNTHETIC 12-second 640×360 testsrc+sine clip, and writes a producer `receipt.json`
+for S01 with the job fingerprint and a fictional billing fixture (not real model
+pricing or actual spending), without reviewer or manual gates. It separately
+writes `approval.json` with a named SYNTHETIC human reviewer distinct from the
+producer, all seven manual gates passing, and the receipt's shot ID, fingerprint
+and actual media SHA-256. It runs:
 
 ```bash
 contf slice "$SAMPLE_ROOT/project.json" --root "$SAMPLE_ROOT" --out "$SAMPLE_ROOT/out" \
-  --receipt "$SAMPLE_ROOT/receipt.json" --width 320 --height 180 --fps 8
+  --receipt "$SAMPLE_ROOT/receipt.json" --approval "$SAMPLE_ROOT/approval.json" \
+  --width 320 --height 180 --fps 8
 contf slice "$SAMPLE_ROOT/project.json" --root "$SAMPLE_ROOT" --out "$SAMPLE_ROOT/out" \
   --width 320 --height 180 --fps 8
 ```
@@ -75,18 +79,59 @@ contf slice "$SAMPLE_ROOT/project.json" --root "$SAMPLE_ROOT" --out "$SAMPLE_ROO
 The first run accepts S01, leaves 15 awaiting approval, and renders 16 segments;
 the second retains acceptance and reuses all 16. Output includes queue.json,
 audit.json, preview.mp4 and preview.manifest.json. `--no-render` omits rendering.
-Repeat `--receipt` for multiple raw producer receipts. Validation/receipt errors
+Repeat `--receipt` and `--approval` for multiple raw producer receipts and separate
+human approvals. Each approval must match a supplied or already-queued receipt's
+shot; duplicate approval shot IDs and approvals without receipts are errors.
+An approval can be supplied later for a pending queued receipt without repeating
+`--receipt`. Validation/receipt errors
 exit nonzero. Receipts must include the exact current `build_jobs` fingerprint;
 dimensions/FPS are part of that contract. The standalone
 `python -m contf.production_jobs reconcile --project ... --root ... --queue ...
 --receipt ingest-report.json` accepts repeatable **ingest reports**, not raw receipts.
 
 To ingest and reconcile one raw receipt in a single step, use
-`python -m contf.production_jobs apply --project project.json --root . --queue queue.json --receipt receipt.json --output updated-queue.json`.
+`python -m contf.production_jobs apply --project project.json --root . --queue queue.json --receipt receipt.json --approval approval.json --output updated-queue.json`.
 `apply` binds an omitted fingerprint to the current plan before ingestion; a
 provided mismatched fingerprint is rejected. Acceptance still requires local
 preflight and human review, never a provider's accepted flag. Both `apply` and
-`ingest` require exactly one `--receipt`.
+`ingest` require exactly one `--receipt` and accept at most one optional
+`--approval`. The standalone `python -m contf.production_adapter` also accepts
+`--approval`.
+
+Producer receipts use `receipt_version: "0.2.0"`; legacy 0.1.0 receipts must be
+re-issued against the current job contract, with `reviewer` and `manual_review`
+removed. Either approval field in a producer receipt blocks ingestion with
+`approval fields belong in a separate approval record`. No approval means at best
+`pending-human-review`, never acceptance. A separate approval has this structure:
+
+```json
+{
+  "approval_version": "0.1.0",
+  "shot_id": "S01",
+  "fingerprint": "COPY_CURRENT_JOB_FINGERPRINT",
+  "media_sha256": "COPY_SHA256_OF_REVIEWED_MEDIA",
+  "reviewer": "SYNTHETIC independent human reviewer",
+  "manual_review": {
+    "character_identity": "pass",
+    "costume_and_prop_continuity": "pass",
+    "actual_character_motion": "pass",
+    "dialogue_intelligibility": "pass",
+    "lip_sync": "pass",
+    "shot_transitions": "pass",
+    "rights_and_originality": "pass"
+  }
+}
+```
+
+Every gate must be `pass`, `fail`, or `pending`; acceptance requires all seven to
+pass. Approval version, shot ID, fingerprint and computed media hash must match;
+the reviewer must be non-empty and differ from the producer ignoring case and
+whitespace. Invalid approvals block ingestion. Approval records are separate
+human-controlled inputs, not identity authentication or cryptographic signatures.
+Ingest reports embed validated approval evidence and its reviewer/gates. On slice
+reruns, previously accepted media is re-ingested with that stored approval; changed
+media hashes block acceptance, even if media preflight still passes. Preflight,
+rights, billing provenance and paid-spend approval checks remain required.
 
 Queues store `plan_settings` (width/height/FPS). The jobs CLI accepts `--width`,
 `--height`, and `--fps`; when a same-project `--queue` is supplied, its stored

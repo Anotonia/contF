@@ -14,7 +14,12 @@ from pathlib import Path
 from contf.production_qa import inspect
 from contf.shot_pipeline import compile_plan, validate_media_container
 
-RECEIPT_VERSION = "0.1.0"
+RECEIPT_VERSION = "0.2.0"
+APPROVAL_VERSION = "0.1.0"
+PRODUCER_FIELDS = (
+    "receipt_version", "shot_id", "fingerprint", "producer", "model_version",
+    "media_path", "source_rights", "paid_generation", "human_spend_approval", "cost",
+)
 REQUIRED_REVIEW = (
     "character_identity", "costume_and_prop_continuity",
     "actual_character_motion", "dialogue_intelligibility", "lip_sync",
@@ -45,12 +50,41 @@ def production_fingerprint(project_id: str, cache_key: str) -> str:
     return hashlib.sha256(json.dumps([project_id, cache_key], ensure_ascii=False).encode()).hexdigest()
 
 
-def ingest(project: dict, receipt: dict, root: Path, *, width: int = 640,
+def receipt_from_report(report: dict) -> dict:
+    return {key: report[key] for key in PRODUCER_FIELDS if key in report}
+
+
+def approval_errors(approval: object, receipt: dict, media_sha256: str | None) -> list[str]:
+    if not isinstance(approval, dict):
+        return ["approval must be an object"]
+    errors = []
+    if approval.get("approval_version") != APPROVAL_VERSION:
+        errors.append("approval_version invalid")
+    for key, expected in (("shot_id", receipt.get("shot_id")),
+                          ("fingerprint", receipt.get("fingerprint")),
+                          ("media_sha256", media_sha256)):
+        if not isinstance(expected, str) or not expected or approval.get(key) != expected:
+            errors.append("approval " + key + " mismatch")
+    reviewer = approval.get("reviewer")
+    producer = receipt.get("producer")
+    if not isinstance(reviewer, str) or not reviewer.strip():
+        errors.append("approval reviewer must be a non-empty string")
+    elif isinstance(producer, str) and "".join(reviewer.split()).casefold() == "".join(producer.split()).casefold():
+        errors.append("approval reviewer must differ from producer")
+    manual = approval.get("manual_review")
+    if not isinstance(manual, dict) or any(manual.get(gate) not in ("pass", "fail", "pending") for gate in REQUIRED_REVIEW):
+        errors.append("approval manual_review gates must be pass/fail/pending")
+    return errors
+
+
+def ingest(project: dict, receipt: dict, root: Path, *, approval: object = None, width: int = 640,
            height: int = 360, fps: int = 12) -> dict:
     """Produce an auditable shot candidate; never silently mark accepted."""
     if not isinstance(receipt, dict):
         raise ValueError("receipt must be an object")
     errors = []
+    if "reviewer" in receipt or "manual_review" in receipt:
+        errors.append("approval fields belong in a separate approval record")
     plan = compile_plan(project, root, width=width, height=height, fps=fps)
     expected_key = next((production_fingerprint(project["project_id"], s["cache_key"]) for s in plan["shots"]
                          if s["shot_id"] == receipt.get("shot_id")), None)
@@ -100,17 +134,15 @@ def ingest(project: dict, receipt: dict, root: Path, *, width: int = 640,
             errors.append("invalid expected shot duration")
         if preflight and not preflight["passed"]:
             errors.extend(preflight["errors"])
-    manual = receipt.get("manual_review", {})
-    if not isinstance(manual, dict):
-        manual = {}
-        errors.append("manual_review must be an object")
-    if any(manual.get(gate) not in ("pass", "fail", "pending") for gate in REQUIRED_REVIEW):
-        errors.append("all manual_review gates must be pass/fail/pending")
-    if receipt.get("reviewer") and not isinstance(receipt["reviewer"], str):
-        errors.append("reviewer must be a string")
+    media_sha256 = _sha256(media) if media else None
+    approval_issues = approval_errors(approval, receipt, media_sha256) if approval is not None else []
+    errors.extend(approval_issues)
+    approval_data = approval if isinstance(approval, dict) else {}
+    manual = approval_data.get("manual_review")
+    manual = manual if isinstance(manual, dict) else {}
+    reviewer = approval_data.get("reviewer")
     manual_pass = all(manual.get(gate) == "pass" for gate in REQUIRED_REVIEW)
-    # A reviewer must be explicitly named before an accepted status is possible.
-    accepted = not errors and manual_pass and bool((receipt.get("reviewer") or "").strip())
+    accepted = not errors and approval is not None and manual_pass
     return {
         "receipt_version": RECEIPT_VERSION,
         "shot_id": shot_id,
@@ -120,10 +152,13 @@ def ingest(project: dict, receipt: dict, root: Path, *, width: int = 640,
         "model_version": receipt.get("model_version"),
         "media_path": receipt.get("media_path"),
         "source_rights": receipt.get("source_rights"),
-        "media_sha256": _sha256(media) if media else None,
+        "paid_generation": receipt.get("paid_generation"),
+        "human_spend_approval": receipt.get("human_spend_approval"),
+        "media_sha256": media_sha256,
         "preflight": preflight,
         "manual_review": {gate: manual.get(gate, "pending") for gate in REQUIRED_REVIEW},
-        "reviewer": receipt.get("reviewer"),
+        "reviewer": reviewer,
+        "approval": approval if approval is not None and not approval_issues else None,
         "accepted": accepted,
         "status": "accepted" if accepted else "blocked" if errors else "pending-human-review",
         "errors": errors,
@@ -137,9 +172,11 @@ def main() -> int:
     parser.add_argument("receipt", type=Path)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--approval", type=Path)
     args = parser.parse_args()
     report = ingest(json.loads(args.project.read_text(encoding="utf-8")),
-                    json.loads(args.receipt.read_text(encoding="utf-8")), args.root)
+                    json.loads(args.receipt.read_text(encoding="utf-8")), args.root,
+                    approval=json.loads(args.approval.read_text(encoding="utf-8")) if args.approval else None)
     data = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
     if args.output:
         args.output.write_text(data, encoding="utf-8")
