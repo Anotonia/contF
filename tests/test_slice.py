@@ -2,6 +2,7 @@
 import contextlib
 import copy
 import io
+import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -16,10 +17,52 @@ from contf.cli import main
 from contf.production_adapter import REQUIRED_REVIEW
 from contf.production_jobs import build_jobs
 from contf.slice import run_slice
-from test_production_jobs import project
+from test_production_jobs import approval_record, project
 
 
 class SliceTests(unittest.TestCase):
+    def test_approval_files_require_receipts_and_reject_duplicates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            spec = project()
+            approval_path = root / "SYNTHETIC-approval.json"
+            approval_path.write_text(json.dumps({"shot_id": "S01"}))
+            for approvals, message in (([approval_path], "no supplied or queued receipt"),
+                                       ([approval_path, approval_path], "duplicate approval")):
+                with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                    run_slice(spec, root, root / "out", approvals=approvals, no_render=True)
+                self.assertFalse((root / "out").exists())
+            project_path = root / "SYNTHETIC-project.json"
+            project_path.write_text(json.dumps(spec))
+            argv = ["contf", "slice", str(project_path), "--root", str(root),
+                    "--out", str(root / "out"), "--approval", str(approval_path), "--no-render"]
+            with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(main(), 2)
+            self.assertIn("no supplied or queued receipt", output.getvalue())
+
+    def test_separate_approval_for_queued_pending_receipt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            spec = project()
+            (root / "SYNTHETIC.mp4").write_bytes(b"SYNTHETIC media")
+            raw = {"receipt_version": "0.2.0", "shot_id": "S01",
+                   "fingerprint": build_jobs(spec, root)["jobs"][0]["fingerprint"],
+                   "producer": "SYNTHETIC producer", "model_version": "SYNTHETIC-1",
+                   "source_rights": "owned", "media_path": "SYNTHETIC.mp4",
+                   "paid_generation": True, "human_spend_approval": True}
+            receipt_path = root / "receipt.json"
+            receipt_path.write_text(json.dumps(raw))
+            approval_path = root / "approval.json"
+            approval_path.write_text(json.dumps(approval_record(raw, hashlib.sha256(b"SYNTHETIC media").hexdigest())))
+            with patch("contf.production_adapter.inspect", return_value={"passed": True, "errors": []}):
+                pending = run_slice(spec, root, root / "out", receipts=[receipt_path], no_render=True)
+                self.assertEqual(pending["audit"]["shots"][0]["state"], "pending-human-review")
+                accepted = run_slice(spec, root, root / "out", approvals=[approval_path], no_render=True)
+                self.assertEqual(accepted["audit"]["shots"][0]["state"], "accepted")
+                reused = run_slice(spec, root, root / "out", no_render=True)
+                self.assertEqual(reused["audit"], accepted["audit"])
+                self.assertEqual(reused["errors"], [])
+
     def test_slice_rejects_preview_source_before_writing_queue_or_audit(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -36,20 +79,20 @@ class SliceTests(unittest.TestCase):
             self.assertFalse((out / "queue.json").exists())
             self.assertEqual(audit_path.read_text(), "SYNTHETIC existing audit")
             spec["shots"][0]["source_media"] = None
-            receipt = {"receipt_version": "0.1.0", "shot_id": "S01",
+            receipt = {"receipt_version": "0.2.0", "shot_id": "S01",
                        "fingerprint": build_jobs(spec, root)["jobs"][0]["fingerprint"],
                        "producer": "SYNTHETIC", "model_version": "SYNTHETIC-1",
-                       "media_path": "out/preview.mp4", "source_rights": "owned",
-                       "reviewer": "SYNTHETIC reviewer",
-                       "manual_review": {k: "pass" for k in REQUIRED_REVIEW}}
+                       "media_path": "out/preview.mp4", "source_rights": "owned"}
             path = root / "receipt.json"
+            approval_path = root / "approval.json"
+            approval = approval_record(receipt, hashlib.sha256(media.read_bytes()).hexdigest())
             path.write_text(json.dumps(receipt))
             with patch("contf.production_adapter.inspect", return_value={"passed": True, "errors": []}):
                 for gate_state in ("pass", "pending"):
-                    receipt["manual_review"] = {k: gate_state for k in REQUIRED_REVIEW}
-                    path.write_text(json.dumps(receipt))
+                    approval["manual_review"] = {k: gate_state for k in REQUIRED_REVIEW}
+                    approval_path.write_text(json.dumps(approval))
                     with self.assertRaisesRegex(ValueError, "overwrite source"):
-                        run_slice(spec, root, out, receipts=[path])
+                        run_slice(spec, root, out, receipts=[path], approvals=[approval_path])
             self.assertFalse((out / "queue.json").exists())
             self.assertEqual(audit_path.read_text(), "SYNTHETIC existing audit")
             self.assertEqual(media.read_bytes(), b"SYNTHETIC source media")
@@ -75,19 +118,19 @@ class SliceTests(unittest.TestCase):
                             "sine=frequency=440:sample_rate=44100", "-t", "12",
                             "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt",
                             "yuv420p", "-c:a", "aac", str(root / "SYNTHETIC.mp4")], check=True)
-            receipt = {"receipt_version": "0.1.0", "shot_id": "S01",
+            receipt = {"receipt_version": "0.2.0", "shot_id": "S01",
                        "fingerprint": build_jobs(spec, root)["jobs"][0]["fingerprint"],
                        "producer": "SYNTHETIC", "model_version": "ffmpeg-testsrc",
                        "media_path": "SYNTHETIC.mp4", "source_rights": "owned",
-                       "reviewer": "SYNTHETIC reviewer",
-                       "manual_review": {k: "pass" for k in REQUIRED_REVIEW},
                        "cost": {"amount": 3, "currency": "USD", "source": "SYNTHETIC billing"}}
             path = root / "receipt.json"
             path.write_text(json.dumps(receipt))
+            approval_path = root / "approval.json"
+            approval_path.write_text(json.dumps(approval_record(receipt, hashlib.sha256((root / "SYNTHETIC.mp4").read_bytes()).hexdigest())))
             spec_path = root / "project.json"
             spec_path.write_text(json.dumps(spec))
             argv = ["contf", "slice", str(spec_path), "--root", str(root),
-                    "--out", str(root / "out"), "--receipt", str(path)]
+                    "--out", str(root / "out"), "--receipt", str(path), "--approval", str(approval_path)]
             with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()) as stream:
                 self.assertEqual(main(), 0)
             first = json.loads(stream.getvalue())
@@ -119,16 +162,19 @@ class SliceTests(unittest.TestCase):
             self.assertTrue(foreign_result["errors"])
             self.assertNotEqual(foreign_result["audit"]["shots"][0]["state"], "accepted")
             path.write_text(json.dumps(receipt))
-            run_slice(spec, root, root / "out", receipts=[path], no_render=True)
+            run_slice(spec, root, root / "out", receipts=[path], approvals=[approval_path], no_render=True)
             media = root / "SYNTHETIC.mp4"
             original = media.read_bytes()
-            media.write_bytes(b"SYNTHETIC invalid changed media")
+            media.write_bytes(original + b"SYNTHETIC changed media")
             changed = run_slice(spec, root, root / "out", no_render=True)
             self.assertEqual(changed["audit"]["shots"][0]["state"], "blocked")
+            changed_receipt = json.loads((root / "out/queue.json").read_text())["jobs"][0]["media_receipt"]
+            self.assertIn("approval media_sha256 mismatch", changed_receipt["errors"])
+            self.assertTrue(changed_receipt["preflight"]["passed"])
             media.write_bytes(original)
             receipt.pop("cost")
             path.write_text(json.dumps(receipt))
-            missing = run_slice(spec, root, root / "out", receipts=[path], no_render=True)
+            missing = run_slice(spec, root, root / "out", receipts=[path], approvals=[approval_path], no_render=True)
             self.assertIsNone(missing["audit"]["shots"][0]["cost"])
             self.assertEqual(missing["audit"]["totals"]["unknown_cost_count"], 1)
             self.assertEqual(missing["audit"]["totals"]["not_produced_count"], 1)

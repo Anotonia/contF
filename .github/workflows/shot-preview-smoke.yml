@@ -37,7 +37,7 @@ jobs:
           ffmpeg -hide_banner -version | head -n 1
       - name: Run full test suite with FFmpeg installed
         run: python3 -m unittest discover -s tests -v
-      - name: Verify SYNTHETIC receipt to audit and cached preview
+      - name: Verify SYNTHETIC receipt plus separate human approval to audit and cached preview
         run: |
           python3 -m pip install -e .
           python3 tests/synthetic_slice_smoke.py "$(mktemp -d)/SYNTHETIC-slice"

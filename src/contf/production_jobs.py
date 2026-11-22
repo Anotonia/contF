@@ -10,7 +10,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from contf.production_adapter import REQUIRED_REVIEW, ingest, production_fingerprint
+from contf.production_adapter import RECEIPT_VERSION, REQUIRED_REVIEW, approval_errors, ingest, production_fingerprint
 from contf.shot_pipeline import compile_plan
 
 VERSION = "0.2.0"
@@ -46,16 +46,23 @@ def build_jobs(project: dict, root: Path, *, width: int = 640,
 def _verified_receipt(receipt: dict) -> bool:
     """Only a complete local ingestion report can promote a shot to accepted."""
     return (receipt.get("accepted") is True
+            and receipt.get("receipt_version") == RECEIPT_VERSION
+            and isinstance(receipt.get("producer"), str)
+            and bool(receipt["producer"].strip())
             and receipt.get("status") == "accepted"
             and receipt.get("errors") == []
             and isinstance(receipt.get("media_sha256"), str)
             and len(receipt["media_sha256"]) == 64
             and isinstance(receipt.get("reviewer"), str)
             and bool(receipt["reviewer"].strip())
+            and isinstance(receipt.get("approval"), dict)
+            and not approval_errors(receipt["approval"], receipt, receipt.get("media_sha256"))
+            and receipt["approval"].get("reviewer") == receipt["reviewer"]
             and isinstance(receipt.get("preflight"), dict)
             and receipt["preflight"].get("passed") is True
             and isinstance(receipt.get("manual_review"), dict)
-            and all(receipt["manual_review"].get(k) == "pass" for k in REQUIRED_REVIEW))
+            and all(receipt["manual_review"].get(k) == "pass"
+                    and receipt["approval"]["manual_review"].get(k) == "pass" for k in REQUIRED_REVIEW))
 
 
 def reconcile(queue: dict, previous: dict | None = None,
@@ -162,6 +169,7 @@ def main() -> int:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--queue", type=Path)
     parser.add_argument("--receipt", type=Path, action="append", default=[])
+    parser.add_argument("--approval", type=Path, action="append", default=[])
     parser.add_argument("--shot-id")
     parser.add_argument("--human-approved", action="store_true")
     parser.add_argument("--output", type=Path)
@@ -171,6 +179,10 @@ def main() -> int:
     args = parser.parse_args()
     try:
         project = json.loads(args.project.read_text(encoding="utf-8"))
+        if args.approval and (args.command not in ("ingest", "apply") or len(args.approval) != 1):
+            raise ValueError("--approval requires ingest/apply and at most one approval")
+        approval = json.loads(args.approval[0].read_text(encoding="utf-8")) if args.approval else None
+        receipt_errors = []
         queue = json.loads(args.queue.read_text(encoding="utf-8")) if args.queue else None
         if queue is not None and queue.get("project_id") != project["project_id"]:
             queue = None
@@ -191,7 +203,8 @@ def main() -> int:
                 raise ValueError(f"{args.command} requires exactly one --receipt")
             receipt = json.loads(args.receipt[0].read_text(encoding="utf-8"))
             if args.command == "ingest":
-                result = ingest(project, receipt, args.root, **settings)
+                result = ingest(project, receipt, args.root, approval=approval, **settings)
+                receipt_errors = result["errors"]
             else:
                 if not args.queue:
                     raise ValueError("--queue required for apply")
@@ -201,7 +214,8 @@ def main() -> int:
                 if len(matching) != 1:
                     raise ValueError("receipt shot not found in current plan")
                 receipt.setdefault("fingerprint", matching[0]["fingerprint"])
-                report = ingest(project, receipt, args.root, **settings)
+                report = ingest(project, receipt, args.root, approval=approval, **settings)
+                receipt_errors = report["errors"]
                 result = reconcile(planned, previous, {report["shot_id"]: report})
         else:
             if not args.queue:
@@ -221,7 +235,7 @@ def main() -> int:
         if args.output:
             args.output.write_text(output, encoding="utf-8")
         print(output, end="")
-        return 0
+        return 2 if receipt_errors else 0
     except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False))
         return 2

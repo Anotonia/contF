@@ -1,6 +1,7 @@
 """Synthetic media preflight contract tests; no external network or private footage."""
 import sys
 import json
+import hashlib
 import shutil
 import subprocess
 import tempfile
@@ -10,10 +11,10 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from contf.production_qa import inspect, _video_duration
-from contf.production_adapter import REQUIRED_REVIEW, ingest
+from contf.production_adapter import ingest
 from contf.production_jobs import build_jobs
 from contf.shot_pipeline import render_preview
-from test_production_jobs import project
+from test_production_jobs import approval_record, project
 
 
 class CandidatePreflightTests(unittest.TestCase):
@@ -102,13 +103,14 @@ class CandidatePreflightTests(unittest.TestCase):
         spec = project()
         spec["shots"][0]["duration_s"] = 12
         root = self.media.parent
-        receipt = {"receipt_version": "0.1.0", "shot_id": "S01",
+        receipt = {"receipt_version": "0.2.0", "shot_id": "S01",
                    "fingerprint": build_jobs(spec, root)["jobs"][0]["fingerprint"],
                    "producer": "SYNTHETIC", "model_version": "SYNTHETIC-multitrack",
-                   "media_path": self.media.name, "source_rights": "owned",
-                   "reviewer": "SYNTHETIC reviewer",
-                   "manual_review": {gate: "pass" for gate in REQUIRED_REVIEW}}
-        self.assertFalse(ingest(spec, receipt, root)["accepted"])
+                   "media_path": self.media.name, "source_rights": "owned"}
+        approval = approval_record(receipt, hashlib.sha256(self.media.read_bytes()).hexdigest())
+        report = ingest(spec, receipt, root, approval=approval)
+        self.assertFalse(report["accepted"])
+        self.assertIn("multiple video streams are not supported", report["errors"])
         spec["shots"] = spec["shots"][:1]
         spec["shots"][0].update(source_media=self.media.name, source_rights="owned", duration_s=0.5)
         output = root / "preview.mp4"
