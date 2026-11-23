@@ -52,6 +52,27 @@ def main():
         assert report["render"]["rendered_count"] == (16 if index == 0 else 0), report
         assert report["render"]["reused_count"] == (0 if index == 0 else 16), report
         print(f"Run {index + 1}: rendered={report['render']['rendered_count']} reused={report['render']['reused_count']}")
+    # A real FFmpeg third pass: mutate ONLY S02; S01's approved media and
+    # the other 14 unchanged segments must survive. This is a cache proof,
+    # NOT proof of real character motion or a human visual review.
+    modified = json.loads((root / "project.json").read_text(encoding="utf-8"))
+    modified["shots"][1]["action"] += " SYNTHETIC single-shot revision"
+    (root / "project.json").write_text(json.dumps(modified, indent=2) + "\\n", encoding="utf-8")
+    third = json.loads(subprocess.check_output(command, text=True))
+    (root / "run-3-single-shot-change.json").write_text(json.dumps(third, indent=2) + "\\n")
+    assert third["render"]["rendered_count"] == 1, third
+    assert third["render"]["reused_count"] == 15, third
+    actions = third["render"]["shot_actions"]
+    assert [x["shot_id"] for x in actions if x["action"] == "rendered"] == ["S02"], actions
+    assert third["audit"]["totals"]["counts_by_state"] == {
+        "accepted": 1, "awaiting-human-approval": 15}, third
+    queue = json.loads((root / "out/queue.json").read_text(encoding="utf-8"))
+    assert queue["jobs"][0]["state"] == "accepted", queue["jobs"][0]
+    assert queue["jobs"][1]["state"] == "awaiting-human-approval", queue["jobs"][1]
+    fourth = json.loads(subprocess.check_output(command, text=True))
+    assert fourth["render"]["rendered_count"] == 0, fourth
+    assert fourth["render"]["reused_count"] == 16, fourth
+    print("SYNTHETIC single-shot change: S02 rerendered, 15 reused; repeat 16 reused")
     assert (root / "out/preview.mp4").stat().st_size > 0
     print(json.dumps(totals, indent=2))
 
