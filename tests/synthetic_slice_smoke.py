@@ -57,9 +57,9 @@ def main():
     # NOT proof of real character motion or a human visual review.
     modified = json.loads((root / "project.json").read_text(encoding="utf-8"))
     modified["shots"][1]["action"] += " SYNTHETIC single-shot revision"
-    (root / "project.json").write_text(json.dumps(modified, indent=2) + "\\n", encoding="utf-8")
+    (root / "project.json").write_text(json.dumps(modified, indent=2) + "\n", encoding="utf-8")
     third = json.loads(subprocess.check_output(command, text=True))
-    (root / "run-3-single-shot-change.json").write_text(json.dumps(third, indent=2) + "\\n")
+    (root / "run-3-single-shot-change.json").write_text(json.dumps(third, indent=2) + "\n")
     assert third["render"]["rendered_count"] == 1, third
     assert third["render"]["reused_count"] == 15, third
     actions = third["render"]["shot_actions"]
